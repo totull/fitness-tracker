@@ -1,0 +1,3026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fitness Tracker</title>
+  <style>
+    :root {
+      --bg: #eef4ff;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --border: #d8e1ee;
+      --text: #172033;
+      --muted: #63718c;
+      --primary: #2563eb;
+      --primary-soft: #dbeafe;
+      --success: #15803d;
+      --success-soft: #dcfce7;
+      --warn: #b45309;
+      --warn-soft: #ffedd5;
+      --danger: #b91c1c;
+      --danger-soft: #fee2e2;
+      --shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #eaf2ff 0%, #f8fafc 100%);
+      color: var(--text);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    .app-shell {
+      width: min(1100px, calc(100% - 24px));
+      margin: 0 auto;
+      padding: 16px 0 32px;
+    }
+
+    .app-header,
+    .view,
+    .card,
+    .metric,
+    .summary-row,
+    .entry-row,
+    .exercise-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+    }
+
+    .app-header {
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    p {
+      margin: 0;
+    }
+
+    .header-top {
+      display: grid;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .title-block h1 {
+      font-size: 28px;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .title-block p,
+    .muted {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .header-controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field-group {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field-group label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .input,
+    .input-inline,
+    .textarea,
+    .select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface-soft);
+      padding: 12px 14px;
+      color: var(--text);
+    }
+
+    .textarea {
+      resize: vertical;
+      min-height: 88px;
+    }
+
+    .header-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      padding: 14px;
+      border-radius: var(--radius-lg);
+      background: var(--surface-soft);
+      box-shadow: none;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 22px;
+    }
+
+    .tab-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+      position: sticky;
+      top: 8px;
+      z-index: 10;
+    }
+
+    .tab-button,
+    .chip,
+    .mini-button,
+    .action-button,
+    .ghost-button,
+    .toggle {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .tab-button {
+      padding: 12px 10px;
+      font-size: 13px;
+      box-shadow: var(--shadow);
+    }
+
+    .tab-button.active,
+    .chip.active,
+    .toggle.active {
+      background: var(--primary-soft);
+      color: var(--primary);
+      border-color: #93c5fd;
+    }
+
+    .view {
+      padding: 18px;
+      display: none;
+      margin-bottom: 16px;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .card {
+      padding: 16px;
+      border-radius: var(--radius-lg);
+      box-shadow: none;
+    }
+
+    .card-header,
+    .summary-row,
+    .entry-row,
+    .exercise-header,
+    .set-row,
+    .feedback-item,
+    .history-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-header {
+      margin-bottom: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .tag.primary {
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .tag.success {
+      background: var(--success-soft);
+      color: var(--success);
+    }
+
+    .tag.warn {
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+
+    .tag.danger {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .chip-row,
+    .toggle-row,
+    .inline-actions,
+    .meal-list,
+    .feedback-list,
+    .exercise-list,
+    .set-list,
+    .history-list,
+    .summary-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .chip-wrap,
+    .toggle-wrap,
+    .inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip,
+    .toggle,
+    .mini-button,
+    .ghost-button {
+      padding: 10px 12px;
+      background: var(--surface-soft);
+    }
+
+    .mini-button,
+    .ghost-button {
+      font-size: 12px;
+    }
+
+    .ghost-button {
+      background: transparent;
+    }
+
+    .action-button {
+      padding: 14px 16px;
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+      width: 100%;
+    }
+
+    .meal-row,
+    .summary-row,
+    .entry-row,
+    .history-row {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: var(--surface-soft);
+      border: 1px solid var(--border);
+    }
+
+    .summary-row,
+    .history-row {
+      align-items: flex-start;
+    }
+
+    .split-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .exercise-card {
+      padding: 14px;
+      border-radius: 18px;
+      background: var(--surface-soft);
+      box-shadow: none;
+    }
+
+    .exercise-header {
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .exercise-title {
+      display: grid;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .set-row {
+      align-items: end;
+      padding: 10px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .set-row:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .set-grid {
+      display: grid;
+      gap: 8px;
+      width: 100%;
+      grid-template-columns: 0.7fr 1fr 1fr;
+    }
+
+    .two-col,
+    .three-col,
+    .metric-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .two-col {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .three-col {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .metric-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .chart {
+      display: flex;
+      align-items: end;
+      gap: 8px;
+      min-height: 180px;
+      padding-top: 16px;
+    }
+
+    .bar-group {
+      flex: 1;
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+    }
+
+    .bar {
+      width: 100%;
+      max-width: 26px;
+      border-radius: 999px 999px 8px 8px;
+      background: linear-gradient(180deg, #60a5fa, #1d4ed8);
+      min-height: 8px;
+    }
+
+    .bar.good {
+      background: linear-gradient(180deg, #86efac, #15803d);
+    }
+
+    .bar.warn {
+      background: linear-gradient(180deg, #fdba74, #c2410c);
+    }
+
+    .bar-label {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .feedback-item {
+      align-items: flex-start;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+    }
+
+    .save-note {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .empty-state {
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--surface-soft);
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (min-width: 860px) {
+      .header-top {
+        grid-template-columns: 1.4fr 0.9fr;
+        align-items: start;
+      }
+
+      .split-grid {
+        grid-template-columns: 1.05fr 0.95fr;
+      }
+
+      .progress-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 14px;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .app-shell {
+        width: min(100% - 16px, 1100px);
+      }
+
+      .title-block h1 {
+        font-size: 24px;
+      }
+
+      .tab-bar {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .two-col,
+      .three-col,
+      .metric-grid,
+      .set-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .set-row {
+        align-items: stretch;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <span class="eyebrow">Local-first app</span>
+      <div class="header-top">
+        <div class="title-block">
+          <h1>Fitness Tracker</h1>
+          <p>
+            A working phone-friendly tracker for daily meals, workouts, cardio, progress,
+            and weekly adherence. All entries are stored in your browser.
+          </p>
+        </div>
+        <div class="header-controls">
+          <div class="field-group">
+            <label for="entryDate">Entry date</label>
+            <input class="input" id="entryDate" type="date">
+          </div>
+          <div class="inline-actions">
+            <button class="mini-button" type="button" data-action="prev-day">Previous day</button>
+            <button class="mini-button" type="button" data-action="today">Today</button>
+            <button class="mini-button" type="button" data-action="next-day">Next day</button>
+          </div>
+          <div class="header-stats" id="headerStats"></div>
+        </div>
+      </div>
+      <div class="save-note" id="saveNote">Loading tracker...</div>
+    </header>
+
+    <nav class="tab-bar" id="tabBar">
+      <button class="tab-button" data-view="dashboard">Dashboard</button>
+      <button class="tab-button" data-view="log">Daily Log</button>
+      <button class="tab-button" data-view="progress">Progress</button>
+      <button class="tab-button" data-view="summary">Summary</button>
+    </nav>
+
+    <main>
+      <section class="view" id="dashboardView"></section>
+      <section class="view" id="logView"></section>
+      <section class="view" id="progressView"></section>
+      <section class="view" id="summaryView"></section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const STORAGE_KEY = "fitness-tracker-local-v3";
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    const WEEKLY_PLAN = [
+      {
+        name: "Chest + Triceps",
+        shortName: "Chest",
+        estimatedBurn: 220,
+        exercises: [
+          { name: "Flat dumbbell press", sets: 3, reps: 10 },
+          { name: "Incline chest press", sets: 3, reps: 10 },
+          { name: "Cable fly", sets: 3, reps: 12 },
+          { name: "Rope pushdown", sets: 3, reps: 12 }
+        ]
+      },
+      {
+        name: "Back + Biceps",
+        shortName: "Back",
+        estimatedBurn: 230,
+        exercises: [
+          { name: "Lat pulldown", sets: 3, reps: 10 },
+          { name: "Seated row", sets: 3, reps: 12 },
+          { name: "Single-arm dumbbell row", sets: 3, reps: 10 },
+          { name: "Dumbbell curls", sets: 3, reps: 12 }
+        ]
+      },
+      {
+        name: "Legs (ACL safe)",
+        shortName: "Legs",
+        estimatedBurn: 240,
+        exercises: [
+          { name: "Leg press (controlled range)", sets: 3, reps: 12 },
+          { name: "Romanian deadlift", sets: 3, reps: 10 },
+          { name: "Step-up to low box", sets: 3, reps: 10 },
+          { name: "Hamstring curl", sets: 3, reps: 12 }
+        ]
+      },
+      {
+        name: "Shoulders + Core",
+        shortName: "Shoulders",
+        estimatedBurn: 210,
+        exercises: [
+          { name: "Seated shoulder press", sets: 3, reps: 10 },
+          { name: "Lateral raise", sets: 3, reps: 12 },
+          { name: "Face pull", sets: 3, reps: 12 },
+          { name: "Plank", sets: 3, reps: 45 }
+        ]
+      },
+      {
+        name: "Swimming + Full Body",
+        shortName: "Full Body",
+        estimatedBurn: 320,
+        exercises: [
+          { name: "Swimming laps", sets: 1, reps: 30 },
+          { name: "Goblet squat", sets: 3, reps: 12 },
+          { name: "Push-up", sets: 3, reps: 10 },
+          { name: "Cable row", sets: 3, reps: 12 }
+        ]
+      },
+      {
+        name: "Active Recovery",
+        shortName: "Recovery",
+        estimatedBurn: 120,
+        exercises: [
+          { name: "Mobility flow", sets: 1, reps: 15 },
+          { name: "Easy cycling", sets: 1, reps: 20 },
+          { name: "Band pull-apart", sets: 2, reps: 15 }
+        ]
+      },
+      {
+        name: "Rest Day",
+        shortName: "Rest",
+        estimatedBurn: 0,
+        exercises: [
+          { name: "Light walk", sets: 1, reps: 20 }
+        ]
+      }
+    ];
+
+    const MEAL_ROTATION = [
+      {
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + Greek yogurt + 1 roti", calories: 520, protein: 36 },
+        dinner: { name: "Tofu curry + dal + 2 rotis + curd", calories: 980, protein: 63 }
+      },
+      {
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + sprouts + curd", calories: 500, protein: 38 },
+        dinner: { name: "Soya chunk masala + rice + raita", calories: 1010, protein: 70 }
+      },
+      {
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + tofu + lemon dressing", calories: 510, protein: 40 },
+        dinner: { name: "Paneer bhurji + dal + 2 rotis", calories: 970, protein: 60 }
+      },
+      {
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + chana + curd", calories: 530, protein: 37 },
+        dinner: { name: "Rajma rice + tofu stir-fry + curd", calories: 955, protein: 61 }
+      },
+      {
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + 1 roti + hung curd", calories: 515, protein: 36 },
+        dinner: { name: "Chole + 2 rotis + cucumber raita + tofu", calories: 975, protein: 63 }
+      },
+      {
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + sprouts + tofu", calories: 520, protein: 41 },
+        dinner: { name: "Moong chilla + paneer stuffing + sambar", calories: 960, protein: 62 }
+      },
+      {
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + curd + fruit", calories: 495, protein: 34 },
+        dinner: { name: "Palak tofu + dal + 2 rotis + curd", calories: 985, protein: 66 }
+      }
+    ];
+
+    const CARDIO_TYPES = {
+      Cycling: 8,
+      Rowing: 9,
+      Swimming: 10,
+      Walking: 4
+    };
+
+    const INTENSITY_FACTORS = {
+      Light: 0.85,
+      Moderate: 1,
+      Hard: 1.15
+    };
+
+    const BODY_PART_LIBRARY = {
+      Chest: {
+        factor: 1.08,
+        exercises: [
+          { name: "Flat dumbbell press", sets: 3, reps: 10 },
+          { name: "Incline chest press", sets: 3, reps: 10 },
+          { name: "Cable fly", sets: 3, reps: 12 }
+        ]
+      },
+      Back: {
+        factor: 1.12,
+        exercises: [
+          { name: "Lat pulldown", sets: 3, reps: 10 },
+          { name: "Seated row", sets: 3, reps: 12 },
+          { name: "Single-arm dumbbell row", sets: 3, reps: 10 }
+        ]
+      },
+      Legs: {
+        factor: 1.2,
+        exercises: [
+          { name: "Leg press (controlled range)", sets: 3, reps: 12 },
+          { name: "Romanian deadlift", sets: 3, reps: 10 },
+          { name: "Hamstring curl", sets: 3, reps: 12 }
+        ]
+      },
+      Shoulders: {
+        factor: 1.04,
+        exercises: [
+          { name: "Seated shoulder press", sets: 3, reps: 10 },
+          { name: "Lateral raise", sets: 3, reps: 12 },
+          { name: "Face pull", sets: 3, reps: 12 }
+        ]
+      },
+      Core: {
+        factor: 0.92,
+        exercises: [
+          { name: "Plank", sets: 3, reps: 45 },
+          { name: "Cable crunch", sets: 3, reps: 12 },
+          { name: "Dead bug", sets: 3, reps: 10 }
+        ]
+      },
+      Biceps: {
+        factor: 0.98,
+        exercises: [
+          { name: "Dumbbell curls", sets: 3, reps: 12 },
+          { name: "Hammer curls", sets: 3, reps: 12 },
+          { name: "Cable curls", sets: 3, reps: 12 }
+        ]
+      },
+      Triceps: {
+        factor: 0.98,
+        exercises: [
+          { name: "Rope pushdown", sets: 3, reps: 12 },
+          { name: "Overhead triceps extension", sets: 3, reps: 12 },
+          { name: "Bench dip", sets: 3, reps: 10 }
+        ]
+      },
+      Swimming: {
+        factor: 1.12,
+        exercises: [
+          { name: "Swimming laps", sets: 1, reps: 30 }
+        ]
+      },
+      "Full Body": {
+        factor: 1.12,
+        exercises: [
+          { name: "Goblet squat", sets: 3, reps: 12 },
+          { name: "Push-up", sets: 3, reps: 10 },
+          { name: "Cable row", sets: 3, reps: 12 }
+        ]
+      },
+      Recovery: {
+        factor: 0.72,
+        exercises: [
+          { name: "Mobility flow", sets: 1, reps: 15 },
+          { name: "Easy cycling", sets: 1, reps: 20 },
+          { name: "Band pull-apart", sets: 2, reps: 15 }
+        ]
+      },
+      Rest: {
+        factor: 0.45,
+        exercises: [
+          { name: "Light walk", sets: 1, reps: 20 }
+        ]
+      }
+    };
+
+    const BODY_PART_OPTIONS = Object.keys(BODY_PART_LIBRARY);
+
+    const FOOD_CATALOG = [
+      { aliases: ["whey protein", "whey"], measure: "scoop", baseAmount: 1, calories: 120, protein: 24, carbs: 3, fat: 2 },
+      { aliases: ["creatine"], measure: "scoop", baseAmount: 1, calories: 0, protein: 0, carbs: 0, fat: 0 },
+      { aliases: ["skim milk", "toned milk", "low fat milk", "milk"], measure: "ml", baseAmount: 250, calories: 90, protein: 8, carbs: 12, fat: 1 },
+      { aliases: ["egg whites", "egg white"], measure: "piece", baseAmount: 1, calories: 17, protein: 4, carbs: 0, fat: 0 },
+      { aliases: ["eggs", "egg"], measure: "piece", baseAmount: 1, calories: 72, protein: 6, carbs: 0.4, fat: 5 },
+      { aliases: ["greek yogurt", "hung curd"], measure: "g", baseAmount: 200, calories: 140, protein: 20, carbs: 8, fat: 2 },
+      { aliases: ["curd", "yogurt"], measure: "g", baseAmount: 200, calories: 120, protein: 8, carbs: 10, fat: 5 },
+      { aliases: ["tofu"], measure: "g", baseAmount: 150, calories: 140, protein: 17, carbs: 4, fat: 8 },
+      { aliases: ["paneer"], measure: "g", baseAmount: 100, calories: 265, protein: 18, carbs: 6, fat: 20 },
+      { aliases: ["soya chunks", "soya chunk", "soy chunks", "soy chunk"], measure: "g", baseAmount: 60, calories: 210, protein: 31, carbs: 20, fat: 1 },
+      { aliases: ["sprouts", "moong sprouts"], measure: "cup", baseAmount: 1, calories: 100, protein: 8, carbs: 17, fat: 1 },
+      { aliases: ["dal", "lentils"], measure: "cup", baseAmount: 1, calories: 180, protein: 12, carbs: 28, fat: 3 },
+      { aliases: ["chana", "chickpeas", "chole"], measure: "cup", baseAmount: 1, calories: 240, protein: 12, carbs: 38, fat: 4 },
+      { aliases: ["rajma", "kidney beans"], measure: "cup", baseAmount: 1, calories: 225, protein: 15, carbs: 40, fat: 1 },
+      { aliases: ["rice", "cooked rice"], measure: "cup", baseAmount: 1, calories: 205, protein: 4, carbs: 45, fat: 0.5 },
+      { aliases: ["roti", "rotis", "chapati"], measure: "piece", baseAmount: 1, calories: 110, protein: 3, carbs: 18, fat: 3 },
+      { aliases: ["sambar"], measure: "cup", baseAmount: 1, calories: 140, protein: 6, carbs: 20, fat: 4 },
+      { aliases: ["moong chilla", "chilla"], measure: "piece", baseAmount: 1, calories: 130, protein: 7, carbs: 15, fat: 4 },
+      { aliases: ["salad"], measure: "cup", baseAmount: 1, calories: 35, protein: 2, carbs: 7, fat: 0.5 },
+      { aliases: ["banana"], measure: "piece", baseAmount: 1, calories: 105, protein: 1, carbs: 27, fat: 0.4 },
+      { aliases: ["apple"], measure: "piece", baseAmount: 1, calories: 95, protein: 0.5, carbs: 25, fat: 0.3 },
+      { aliases: ["fruit"], measure: "piece", baseAmount: 1, calories: 90, protein: 1, carbs: 22, fat: 0.3 },
+      { aliases: ["oats"], measure: "g", baseAmount: 40, calories: 150, protein: 5, carbs: 27, fat: 3 },
+      { aliases: ["raita"], measure: "cup", baseAmount: 1, calories: 110, protein: 5, carbs: 8, fat: 6 },
+      { aliases: ["palak tofu"], measure: "serving", baseAmount: 1, calories: 220, protein: 18, carbs: 10, fat: 10 },
+      { aliases: ["tofu curry"], measure: "serving", baseAmount: 1, calories: 260, protein: 20, carbs: 16, fat: 11 },
+      { aliases: ["paneer bhurji"], measure: "serving", baseAmount: 1, calories: 320, protein: 21, carbs: 10, fat: 22 }
+    ];
+
+    const REMOTE_TABLE = "fitness_tracker_state";
+    const REMOTE_REDIRECT = typeof window !== "undefined"
+      ? window.location.href.split("#")[0].split("?")[0]
+      : "";
+
+    const DEFAULT_STATE = {
+      version: 4,
+      startDate: todayKey(),
+      selectedDate: todayKey(),
+      currentView: "dashboard",
+      lastSavedAt: null,
+      profile: {
+        currentWeight: 88,
+        goalWeight: 75,
+        calorieTarget: 1750,
+        proteinTarget: 130,
+        stepTarget: 10000,
+        waterTargetLiters: 3,
+        maintenanceCalories: 2450
+      },
+      remote: {
+        url: "",
+        anonKey: "",
+        email: ""
+      },
+      entries: {}
+    };
+
+    let state = loadState();
+    const remoteRuntime = {
+      client: null,
+      configKey: "",
+      user: null,
+      status: "Local only",
+      tone: "primary",
+      lastSyncAt: null,
+      syncTimer: null,
+      unsubscribe: null,
+      pulling: false
+    };
+
+    function cloneData(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function todayKey() {
+      const now = new Date();
+      const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function parseDateKey(dateKey) {
+      return new Date(dateKey + "T00:00:00");
+    }
+
+    function daysBetween(fromKey, toKey) {
+      return Math.round((parseDateKey(toKey) - parseDateKey(fromKey)) / DAY_MS);
+    }
+
+    function dayNumber(dateKey) {
+      return Math.max(1, daysBetween(state.startDate, dateKey) + 1);
+    }
+
+    function formatHumanDate(dateKey) {
+      return parseDateKey(dateKey).toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric"
+      });
+    }
+
+    function formatShortDate(dateKey) {
+      return parseDateKey(dateKey).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric"
+      });
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function toNumber(value) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : 0;
+    }
+
+    function round(value) {
+      return Math.round(value);
+    }
+
+    function roundOne(value) {
+      return Math.round(value * 10) / 10;
+    }
+
+    function normalizeText(value) {
+      return String(value || "")
+        .toLowerCase()
+        .replace(/[()]/g, " ")
+        .replace(/[^a-z0-9.\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function escapeRegExp(value) {
+      return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function titleCase(value) {
+      return value.charAt(0).toUpperCase() + value.slice(1);
+    }
+
+    function formatWeightDelta(value) {
+      if (!value) {
+        return "0 kg";
+      }
+      return value > 0 ? `-${value} kg` : `+${Math.abs(value)} kg`;
+    }
+
+    function toneLabel(tone) {
+      if (tone === "success") {
+        return "Good";
+      }
+      if (tone === "warn") {
+        return "Watch";
+      }
+      if (tone === "danger") {
+        return "Alert";
+      }
+      return "Info";
+    }
+
+    function escapeValue(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function escapeText(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function formatMacroLine(nutrition) {
+      return `${nutrition.protein}P / ${nutrition.carbs}C / ${nutrition.fat}F`;
+    }
+
+    function loadState() {
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem(STORAGE_KEY) ||
+          localStorage.getItem("fitness-tracker-local-v3") ||
+          localStorage.getItem("fitness-tracker-local-v2") ||
+          localStorage.getItem("fitness-tracker-local-v1") ||
+          "null"
+        );
+        if (!saved) {
+          return cloneData(DEFAULT_STATE);
+        }
+        return {
+          ...cloneData(DEFAULT_STATE),
+          ...saved,
+          profile: {
+            ...cloneData(DEFAULT_STATE.profile),
+            ...(saved.profile || {})
+          },
+          remote: {
+            ...cloneData(DEFAULT_STATE.remote),
+            ...(saved.remote || {})
+          },
+          entries: saved.entries || {}
+        };
+      } catch (error) {
+        return cloneData(DEFAULT_STATE);
+      }
+    }
+
+    function persistLocalState() {
+      state.lastSavedAt = new Date().toISOString();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function saveState(options = {}) {
+      persistLocalState();
+      renderSaveNote();
+      if (options.queueRemote !== false) {
+        queueRemoteSync();
+      }
+    }
+
+    function hasRemoteConfig() {
+      return Boolean(state.remote.url.trim() && state.remote.anonKey.trim());
+    }
+
+    function remoteStatusLabel() {
+      if (remoteRuntime.user) {
+        return remoteRuntime.user.email || "Signed in";
+      }
+      return remoteRuntime.status;
+    }
+
+    function setRemoteStatus(status, tone = "primary") {
+      remoteRuntime.status = status;
+      remoteRuntime.tone = tone;
+      renderSaveNote();
+    }
+
+    function resetRemoteClient() {
+      if (remoteRuntime.unsubscribe?.unsubscribe) {
+        remoteRuntime.unsubscribe.unsubscribe();
+      }
+      remoteRuntime.client = null;
+      remoteRuntime.configKey = "";
+      remoteRuntime.user = null;
+      remoteRuntime.unsubscribe = null;
+      remoteRuntime.lastSyncAt = null;
+      clearTimeout(remoteRuntime.syncTimer);
+      remoteRuntime.syncTimer = null;
+    }
+
+    async function ensureSupabaseClient() {
+      if (!hasRemoteConfig()) {
+        setRemoteStatus("Local only", "primary");
+        return null;
+      }
+
+      if (!window.supabase?.createClient) {
+        throw new Error("Supabase client library failed to load.");
+      }
+
+      const configKey = `${state.remote.url}|${state.remote.anonKey}`;
+      if (remoteRuntime.client && remoteRuntime.configKey === configKey) {
+        return remoteRuntime.client;
+      }
+
+      resetRemoteClient();
+      remoteRuntime.client = window.supabase.createClient(state.remote.url, state.remote.anonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+      remoteRuntime.configKey = configKey;
+
+      const authListener = remoteRuntime.client.auth.onAuthStateChange((_event, session) => {
+        remoteRuntime.user = session?.user || null;
+        if (remoteRuntime.user) {
+          setRemoteStatus(`Signed in as ${remoteRuntime.user.email || state.remote.email}`, "success");
+          render();
+        } else if (hasRemoteConfig()) {
+          setRemoteStatus("Configured. Send a magic link to sign in.", "warn");
+          render();
+        }
+      });
+      remoteRuntime.unsubscribe = authListener.data?.subscription || null;
+
+      return remoteRuntime.client;
+    }
+
+    function buildRemotePayload() {
+      return {
+        version: state.version,
+        startDate: state.startDate,
+        profile: state.profile,
+        entries: state.entries
+      };
+    }
+
+    function applyRemotePayload(payload) {
+      state.startDate = payload.startDate || state.startDate;
+      state.profile = {
+        ...state.profile,
+        ...(payload.profile || {})
+      };
+      state.entries = payload.entries || {};
+      ensureEntry(state.selectedDate);
+    }
+
+    async function restoreRemoteSession(options = {}) {
+      if (!hasRemoteConfig()) {
+        setRemoteStatus("Enter Supabase URL and anon key to enable cloud sync.", "warn");
+        if (!options.silent) {
+          render();
+        }
+        return;
+      }
+
+      try {
+        const client = await ensureSupabaseClient();
+        const { data, error } = await client.auth.getSession();
+        if (error) {
+          throw error;
+        }
+
+        remoteRuntime.user = data.session?.user || null;
+        if (remoteRuntime.user) {
+          setRemoteStatus(`Signed in as ${remoteRuntime.user.email || state.remote.email}`, "success");
+          await pullRemoteState({ silent: true });
+        } else {
+          setRemoteStatus("Send a magic link to sign in from this device.", "warn");
+        }
+      } catch (error) {
+        setRemoteStatus(error.message || "Unable to restore cloud session.", "danger");
+      }
+
+      if (!options.silent) {
+        render();
+      }
+    }
+
+    async function sendMagicLink() {
+      if (!state.remote.email.trim()) {
+        setRemoteStatus("Enter your email address first.", "warn");
+        render();
+        return;
+      }
+
+      try {
+        const client = await ensureSupabaseClient();
+        const { error } = await client.auth.signInWithOtp({
+          email: state.remote.email.trim(),
+          options: {
+            emailRedirectTo: REMOTE_REDIRECT
+          }
+        });
+        if (error) {
+          throw error;
+        }
+        setRemoteStatus("Magic link sent. Open it on any device to sign in.", "success");
+      } catch (error) {
+        setRemoteStatus(error.message || "Unable to send magic link.", "danger");
+      }
+
+      render();
+    }
+
+    async function signOutRemote() {
+      try {
+        const client = await ensureSupabaseClient();
+        if (client) {
+          const { error } = await client.auth.signOut();
+          if (error) {
+            throw error;
+          }
+        }
+        remoteRuntime.user = null;
+        setRemoteStatus("Signed out. Local data remains on this device.", "warn");
+      } catch (error) {
+        setRemoteStatus(error.message || "Unable to sign out.", "danger");
+      }
+
+      render();
+    }
+
+    async function pushRemoteState(options = {}) {
+      if (!hasRemoteConfig()) {
+        if (!options.silent) {
+          setRemoteStatus("Cloud sync is not configured yet.", "warn");
+          render();
+        }
+        return;
+      }
+
+      try {
+        const client = await ensureSupabaseClient();
+        if (!remoteRuntime.user) {
+          setRemoteStatus("Sign in first to push data to Supabase.", "warn");
+          if (!options.silent) {
+            render();
+          }
+          return;
+        }
+
+        const { error } = await client
+          .from(REMOTE_TABLE)
+          .upsert({
+            user_id: remoteRuntime.user.id,
+            payload: buildRemotePayload(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: "user_id"
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        remoteRuntime.lastSyncAt = new Date().toISOString();
+        setRemoteStatus(`Cloud synced for ${remoteRuntime.user.email || "current user"}.`, "success");
+      } catch (error) {
+        setRemoteStatus(error.message || "Push to Supabase failed.", "danger");
+      }
+
+      if (!options.silent) {
+        render();
+      }
+    }
+
+    async function pullRemoteState(options = {}) {
+      if (!hasRemoteConfig()) {
+        if (!options.silent) {
+          setRemoteStatus("Cloud sync is not configured yet.", "warn");
+          render();
+        }
+        return;
+      }
+
+      try {
+        const client = await ensureSupabaseClient();
+        if (!remoteRuntime.user) {
+          setRemoteStatus("Sign in first to pull data from Supabase.", "warn");
+          if (!options.silent) {
+            render();
+          }
+          return;
+        }
+
+        const { data, error } = await client
+          .from(REMOTE_TABLE)
+          .select("payload, updated_at")
+          .eq("user_id", remoteRuntime.user.id)
+          .maybeSingle();
+
+        if (error) {
+          throw error;
+        }
+
+        if (!data?.payload) {
+          setRemoteStatus("No cloud data yet. Push local data to create your first backup.", "warn");
+        } else {
+          remoteRuntime.pulling = true;
+          applyRemotePayload(data.payload);
+          saveState({ queueRemote: false });
+          remoteRuntime.pulling = false;
+          remoteRuntime.lastSyncAt = data.updated_at || new Date().toISOString();
+          setRemoteStatus("Pulled the latest cloud data.", "success");
+        }
+      } catch (error) {
+        remoteRuntime.pulling = false;
+        setRemoteStatus(error.message || "Pull from Supabase failed.", "danger");
+      }
+
+      if (!options.silent) {
+        render();
+      }
+    }
+
+    function queueRemoteSync() {
+      if (remoteRuntime.pulling || !hasRemoteConfig() || !remoteRuntime.user) {
+        return;
+      }
+
+      clearTimeout(remoteRuntime.syncTimer);
+      remoteRuntime.syncTimer = setTimeout(() => {
+        pushRemoteState({ silent: true }).catch((error) => {
+          setRemoteStatus(error.message || "Background sync failed.", "danger");
+          render();
+        });
+      }, 700);
+    }
+
+    function getPlanIndex(dateKey) {
+      const diff = daysBetween(state.startDate, dateKey);
+      return ((diff % 7) + 7) % 7;
+    }
+
+    function getPlan(dateKey) {
+      return WEEKLY_PLAN[getPlanIndex(dateKey)];
+    }
+
+    function getMeals(dateKey) {
+      return MEAL_ROTATION[getPlanIndex(dateKey)];
+    }
+
+    function createExerciseLog(planExercise) {
+      return {
+        name: planExercise.name,
+        sets: Array.from({ length: planExercise.sets }, () => ({
+          weight: "",
+          reps: String(planExercise.reps)
+        }))
+      };
+    }
+
+    function createEmptyMealLog() {
+      return {
+        details: "",
+        caloriesOverride: ""
+      };
+    }
+
+    function createDefaultMeals() {
+      return {
+        breakfast: createEmptyMealLog(),
+        lunch: createEmptyMealLog(),
+        dinner: createEmptyMealLog(),
+        unplanned: createEmptyMealLog()
+      };
+    }
+
+    function getDefaultBodyPartsForPlan(planName) {
+      const normalized = normalizeText(planName);
+      if (normalized.includes("chest")) {
+        return ["Chest", "Triceps"];
+      }
+      if (normalized.includes("back")) {
+        return ["Back", "Biceps"];
+      }
+      if (normalized.includes("leg")) {
+        return ["Legs"];
+      }
+      if (normalized.includes("shoulder")) {
+        return ["Shoulders", "Core"];
+      }
+      if (normalized.includes("swimming")) {
+        return ["Swimming", "Full Body"];
+      }
+      if (normalized.includes("recovery")) {
+        return ["Recovery"];
+      }
+      if (normalized.includes("rest")) {
+        return ["Rest"];
+      }
+      return ["Full Body"];
+    }
+
+    function normalizeBodyPartList(parts) {
+      const unique = [];
+      parts.forEach((part) => {
+        if (!part || !BODY_PART_LIBRARY[part] || unique.includes(part)) {
+          return;
+        }
+        if (part === "Rest") {
+          unique.length = 0;
+          unique.push("Rest");
+          return;
+        }
+        if (unique.includes("Rest")) {
+          unique.splice(unique.indexOf("Rest"), 1);
+        }
+        unique.push(part);
+      });
+      return unique.length ? unique : ["Full Body"];
+    }
+
+    function parseBodyParts(value) {
+      const normalized = normalizeText(value);
+      if (!normalized) {
+        return [];
+      }
+      const matches = BODY_PART_OPTIONS.filter((part) => normalized.includes(normalizeText(part)));
+      return normalizeBodyPartList(matches);
+    }
+
+    function bodyPartsLabel(parts) {
+      return normalizeBodyPartList(parts).join(" + ");
+    }
+
+    function syncActualBodyPartLabel(entry) {
+      entry.actualBodyParts = normalizeBodyPartList(entry.actualBodyParts || []);
+      entry.actualBodyPart = bodyPartsLabel(entry.actualBodyParts);
+    }
+
+    function createDefaultEntry(dateKey) {
+      const plan = getPlan(dateKey);
+      const bodyParts = getDefaultBodyPartsForPlan(plan.name);
+      return {
+        date: dateKey,
+        weight: "",
+        meals: createDefaultMeals(),
+        waterLiters: "",
+        steps: "",
+        workoutDone: false,
+        actualBodyParts: bodyParts,
+        actualBodyPart: bodyPartsLabel(bodyParts),
+        cardioType: plan.name === "Swimming + Full Body" ? "Swimming" : "Cycling",
+        cardioDuration: plan.name === "Rest Day" ? "20" : "30",
+        cardioIntensity: "Moderate",
+        cardioCalories: String(estimateCardioCalories(
+          plan.name === "Swimming + Full Body" ? "Swimming" : "Cycling",
+          plan.name === "Rest Day" ? 20 : 30,
+          "Moderate"
+        )),
+        workoutNotes: "",
+        exerciseLogs: plan.exercises.map(createExerciseLog)
+      };
+    }
+
+    function migrateLegacyMeal(mealValue, plannedMeal) {
+      if (typeof mealValue === "boolean") {
+        return mealValue
+          ? { details: plannedMeal.name, caloriesOverride: String(plannedMeal.calories) }
+          : createEmptyMealLog();
+      }
+      return {
+        ...createEmptyMealLog(),
+        ...(mealValue || {})
+      };
+    }
+
+    function migrateEntry(dateKey, entry) {
+      let changed = false;
+      const plan = getPlan(dateKey);
+      const plannedMeals = getMeals(dateKey);
+
+      if (!entry.meals || typeof entry.meals !== "object") {
+        entry.meals = createDefaultMeals();
+        changed = true;
+      }
+
+      ["breakfast", "lunch", "dinner", "unplanned"].forEach((mealKey) => {
+        const mealValue = entry.meals[mealKey];
+        if (!mealValue || typeof mealValue !== "object" || typeof mealValue === "boolean") {
+          entry.meals[mealKey] = migrateLegacyMeal(
+            mealValue,
+            plannedMeals[mealKey] || { name: "", calories: 0 }
+          );
+          changed = true;
+        } else {
+          const merged = { ...createEmptyMealLog(), ...mealValue };
+          if (JSON.stringify(merged) !== JSON.stringify(mealValue)) {
+            entry.meals[mealKey] = merged;
+            changed = true;
+          }
+        }
+      });
+
+      if (!Array.isArray(entry.exerciseLogs) || entry.exerciseLogs.length === 0) {
+        entry.exerciseLogs = plan.exercises.map(createExerciseLog);
+        changed = true;
+      }
+
+      entry.exerciseLogs = entry.exerciseLogs.map((exercise) => {
+        const nextExercise = {
+          name: exercise?.name || "New exercise",
+          sets: Array.isArray(exercise?.sets) && exercise.sets.length
+            ? exercise.sets.map((set) => ({
+              weight: set?.weight ?? "",
+              reps: set?.reps ?? ""
+            }))
+            : [{ weight: "", reps: "" }]
+        };
+        return nextExercise;
+      });
+
+      if (!entry.actualBodyParts || !Array.isArray(entry.actualBodyParts) || !entry.actualBodyParts.length) {
+        const parsed = parseBodyParts(entry.actualBodyPart);
+        entry.actualBodyParts = parsed.length ? parsed : getDefaultBodyPartsForPlan(plan.name);
+        changed = true;
+      }
+
+      if (entry.waterLiters === undefined) {
+        entry.waterLiters = "";
+        changed = true;
+      }
+
+      syncActualBodyPartLabel(entry);
+
+      return changed;
+    }
+
+    function ensureEntry(dateKey) {
+      let shouldSave = false;
+      if (!state.entries[dateKey]) {
+        state.entries[dateKey] = createDefaultEntry(dateKey);
+        shouldSave = true;
+      }
+
+      const entry = state.entries[dateKey];
+      if (migrateEntry(dateKey, entry)) {
+        shouldSave = true;
+      }
+
+      if (shouldSave) {
+        saveState();
+      }
+
+      return entry;
+    }
+
+    function estimateCardioCalories(type, duration, intensity) {
+      const base = CARDIO_TYPES[type] || 7;
+      const factor = INTENSITY_FACTORS[intensity] || 1;
+      return round(base * toNumber(duration) * factor);
+    }
+
+    function syncCardioEstimate(entry) {
+      entry.cardioCalories = String(
+        estimateCardioCalories(entry.cardioType, entry.cardioDuration, entry.cardioIntensity)
+      );
+    }
+
+    function hasAliasMatch(segment, alias) {
+      const regex = new RegExp(`(^|\\s)${escapeRegExp(normalizeText(alias))}(?=\\s|$)`);
+      return regex.test(segment);
+    }
+
+    function findFoodMatch(segment) {
+      let bestMatch = null;
+      FOOD_CATALOG.forEach((item) => {
+        item.aliases.forEach((alias) => {
+          if (hasAliasMatch(segment, alias)) {
+            if (!bestMatch || alias.length > bestMatch.alias.length) {
+              bestMatch = { item, alias };
+            }
+          }
+        });
+      });
+      return bestMatch?.item || null;
+    }
+
+    function extractFoodAmount(segment, item) {
+      const grams = segment.match(/(\d+(?:\.\d+)?)\s*(g|gram|grams)\b/);
+      const ml = segment.match(/(\d+(?:\.\d+)?)\s*(ml)\b/);
+      const cups = segment.match(/(\d+(?:\.\d+)?)\s*(cup|cups)\b/);
+      const pieces = segment.match(/(\d+(?:\.\d+)?)\s*(piece|pieces|egg|eggs|roti|rotis|chapati|scoop|scoops|serving|servings)\b/);
+      const rawNumber = segment.match(/(^|\s)(\d+(?:\.\d+)?)(?=\s|$)/);
+
+      if (item.measure === "g" && grams) {
+        return toNumber(grams[1]) / item.baseAmount;
+      }
+      if (item.measure === "ml" && ml) {
+        return toNumber(ml[1]) / item.baseAmount;
+      }
+      if (item.measure === "cup" && cups) {
+        return toNumber(cups[1]) / item.baseAmount;
+      }
+      if ((item.measure === "piece" || item.measure === "scoop" || item.measure === "serving") && pieces) {
+        return toNumber(pieces[1]) / item.baseAmount;
+      }
+      if (rawNumber) {
+        return toNumber(rawNumber[2]) / item.baseAmount;
+      }
+      return 1;
+    }
+
+    function estimateMealNutritionFromText(text) {
+      const segments = String(text || "")
+        .split(/[\n,;+]/)
+        .map((part) => normalizeText(part))
+        .filter(Boolean);
+      const totals = {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        recognizedCount: 0,
+        recognizedNames: []
+      };
+
+      segments.forEach((segment) => {
+        const item = findFoodMatch(segment);
+        if (!item) {
+          return;
+        }
+        const amount = extractFoodAmount(segment, item);
+        totals.calories += item.calories * amount;
+        totals.protein += item.protein * amount;
+        totals.carbs += item.carbs * amount;
+        totals.fat += item.fat * amount;
+        totals.recognizedCount += 1;
+        totals.recognizedNames.push(item.aliases[0]);
+      });
+
+      return {
+        calories: round(totals.calories),
+        protein: roundOne(totals.protein),
+        carbs: roundOne(totals.carbs),
+        fat: roundOne(totals.fat),
+        recognizedCount: totals.recognizedCount,
+        recognizedNames: totals.recognizedNames
+      };
+    }
+
+    function calculateMealNutrition(mealLog) {
+      const details = mealLog?.details?.trim() || "";
+      const estimated = estimateMealNutritionFromText(details);
+      const overrideCalories = mealLog?.caloriesOverride !== "" ? toNumber(mealLog.caloriesOverride) : null;
+
+      return {
+        details,
+        hasLog: Boolean(details || mealLog?.caloriesOverride),
+        calories: overrideCalories !== null ? overrideCalories : estimated.calories,
+        protein: estimated.protein,
+        carbs: estimated.carbs,
+        fat: estimated.fat,
+        usedOverride: overrideCalories !== null,
+        recognizedCount: estimated.recognizedCount,
+        recognizedNames: estimated.recognizedNames
+      };
+    }
+
+    function getActualBodyParts(entry, dateKey) {
+      const bodyParts = normalizeBodyPartList(entry.actualBodyParts || parseBodyParts(entry.actualBodyPart));
+      return bodyParts.length ? bodyParts : getDefaultBodyPartsForPlan(getPlan(dateKey).name);
+    }
+
+    function getActualBodyPart(entry, dateKey) {
+      return bodyPartsLabel(getActualBodyParts(entry, dateKey));
+    }
+
+    function buildExercisesForBodyParts(bodyParts) {
+      const merged = [];
+      bodyParts.forEach((part) => {
+        const template = BODY_PART_LIBRARY[part];
+        if (!template) {
+          return;
+        }
+        template.exercises.forEach((exercise) => {
+          if (!merged.some((item) => normalizeText(item.name) === normalizeText(exercise.name))) {
+            merged.push(createExerciseLog(exercise));
+          }
+        });
+      });
+      return merged.length ? merged : [{ name: "New exercise", sets: [{ weight: "", reps: "" }] }];
+    }
+
+    function getBodyPartFactor(bodyParts) {
+      const normalizedParts = normalizeBodyPartList(bodyParts);
+      const factors = normalizedParts.map((part) => BODY_PART_LIBRARY[part]?.factor || 1);
+      const averageFactor = factors.reduce((sum, factor) => sum + factor, 0) / factors.length;
+      const comboBonus = 1 + Math.min(0.18, (normalizedParts.length - 1) * 0.05);
+      return roundOne(averageFactor * comboBonus);
+    }
+
+    function calculateWorkoutVolume(entry) {
+      return round(
+        entry.exerciseLogs.reduce((total, exercise) => {
+          return total + exercise.sets.reduce((setTotal, set) => {
+            return setTotal + (toNumber(set.weight) * toNumber(set.reps));
+          }, 0);
+        }, 0)
+      );
+    }
+
+    function calculateTotalReps(entry) {
+      return round(
+        entry.exerciseLogs.reduce((total, exercise) => {
+          return total + exercise.sets.reduce((setTotal, set) => setTotal + toNumber(set.reps), 0);
+        }, 0)
+      );
+    }
+
+    function countCompletedSets(entry) {
+      return entry.exerciseLogs.reduce((total, exercise) => {
+        return total + exercise.sets.filter((set) => toNumber(set.reps) > 0 || toNumber(set.weight) > 0).length;
+      }, 0);
+    }
+
+    function countNamedExercises(entry) {
+      return entry.exerciseLogs.filter((exercise) => exercise.name.trim()).length;
+    }
+
+    function estimateWorkoutCalories(entry, bodyParts) {
+      if (!entry.workoutDone) {
+        return 0;
+      }
+
+      const completedSets = countCompletedSets(entry);
+      const totalReps = calculateTotalReps(entry);
+      const workoutVolume = calculateWorkoutVolume(entry);
+      const exerciseCount = countNamedExercises(entry);
+      const factor = getBodyPartFactor(bodyParts);
+      const baseCalories =
+        (completedSets * 7) +
+        (exerciseCount * 8) +
+        Math.min(120, totalReps * 0.45) +
+        Math.min(140, workoutVolume / 240);
+
+      return round(baseCalories * factor);
+    }
+
+    function calculateMetrics(dateKey) {
+      const entry = ensureEntry(dateKey);
+      const meals = getMeals(dateKey);
+      const plan = getPlan(dateKey);
+      const mealBreakdown = {};
+      const actualBodyParts = getActualBodyParts(entry, dateKey);
+      const actualBodyPart = getActualBodyPart(entry, dateKey);
+
+      let foodCalories = 0;
+      let protein = 0;
+      let carbs = 0;
+      let fat = 0;
+
+      ["breakfast", "lunch", "dinner", "unplanned"].forEach((mealKey) => {
+        mealBreakdown[mealKey] = calculateMealNutrition(entry.meals[mealKey]);
+        foodCalories += mealBreakdown[mealKey].calories;
+        protein += mealBreakdown[mealKey].protein;
+        carbs += mealBreakdown[mealKey].carbs;
+        fat += mealBreakdown[mealKey].fat;
+      });
+
+      const workoutVolume = calculateWorkoutVolume(entry);
+      const totalReps = calculateTotalReps(entry);
+      const completedSets = countCompletedSets(entry);
+      const workoutCalories = estimateWorkoutCalories(entry, actualBodyParts);
+      const cardioCalories = toNumber(entry.cardioCalories);
+      const caloriesBurnt = workoutCalories + cardioCalories;
+      const deficit = round(state.profile.maintenanceCalories + caloriesBurnt - foodCalories);
+      const waterLiters = roundOne(toNumber(entry.waterLiters));
+
+      const calorieScore = foodCalories === 0
+        ? 0
+        : clamp(100 - Math.max(0, foodCalories - state.profile.calorieTarget) / state.profile.calorieTarget * 180, 0, 100);
+      const proteinScore = clamp((protein / state.profile.proteinTarget) * 100, 0, 100);
+      const stepsScore = clamp((toNumber(entry.steps) / state.profile.stepTarget) * 100, 0, 100);
+      const waterScore = clamp((waterLiters / state.profile.waterTargetLiters) * 100, 0, 100);
+      const workoutScore = entry.workoutDone ? 100 : 0;
+      const adherenceScore = round((calorieScore + proteinScore + stepsScore + waterScore + workoutScore) / 5);
+      const activityScore = round(
+        clamp((toNumber(entry.steps) / state.profile.stepTarget) * 50, 0, 50) +
+        (entry.workoutDone ? 25 : 0) +
+        clamp((toNumber(entry.cardioDuration) / 30) * 25, 0, 25)
+      );
+
+      return {
+        plan,
+        meals,
+        mealBreakdown,
+        actualBodyParts,
+        actualBodyPart,
+        foodCalories: round(foodCalories),
+        protein: roundOne(protein),
+        carbs: roundOne(carbs),
+        fat: roundOne(fat),
+        waterLiters,
+        workoutCalories,
+        cardioCalories,
+        caloriesBurnt,
+        deficit,
+        workoutVolume,
+        totalReps,
+        completedSets,
+        activityScore,
+        adherenceScore
+      };
+    }
+
+    function buildDailyFeedback(dateKey) {
+      const entry = ensureEntry(dateKey);
+      const metrics = calculateMetrics(dateKey);
+      const feedback = [];
+      const lowConfidenceMeals = Object.entries(metrics.mealBreakdown).filter(([, meal]) => meal.hasLog && meal.recognizedCount === 0 && !meal.usedOverride);
+
+      if (metrics.foodCalories > state.profile.calorieTarget) {
+        feedback.push({
+          tone: "danger",
+          title: "Calories are above target",
+          body: "Trim dinner portions or add an extra walk to bring the day closer to plan."
+        });
+      } else if (metrics.foodCalories > 0) {
+        feedback.push({
+          tone: "success",
+          title: "Calories are within target",
+          body: "Your logged meals are staying close to the daily goal."
+        });
+      }
+
+      if (metrics.protein < state.profile.proteinTarget) {
+        feedback.push({
+          tone: "warn",
+          title: "Protein is low",
+          body: "Add tofu, curd, Greek yogurt, whey, or egg whites to close the gap."
+        });
+      }
+
+      if (lowConfidenceMeals.length) {
+        feedback.push({
+          tone: "warn",
+          title: "Some meals need better detail",
+          body: "Use comma-separated foods like 2 eggs, 200g curd, 1 roti, or add a calorie override."
+        });
+      }
+
+      if (metrics.waterLiters > 0 && metrics.waterLiters < state.profile.waterTargetLiters) {
+        feedback.push({
+          tone: "warn",
+          title: "Water intake is below target",
+          body: `Aim for about ${state.profile.waterTargetLiters} L today to support training and recovery.`
+        });
+      }
+
+      if (!entry.workoutDone && !metrics.actualBodyParts.every((part) => part === "Rest")) {
+        feedback.push({
+          tone: "danger",
+          title: "Workout still pending",
+          body: "If the main session is missed, log the actual body part as recovery and keep steps up."
+        });
+      }
+
+      if (toNumber(entry.steps) < state.profile.stepTarget) {
+        feedback.push({
+          tone: "warn",
+          title: "Steps are below target",
+          body: "A 15 to 20 minute walk after dinner will usually close the gap."
+        });
+      }
+
+      if (feedback.length === 0) {
+        feedback.push({
+          tone: "primary",
+          title: "No alerts yet",
+          body: "Start logging meals and training to unlock smarter feedback."
+        });
+      }
+
+      return feedback;
+    }
+
+    function getOrderedEntryKeys() {
+      return Object.keys(state.entries).sort();
+    }
+
+    function getRecentEntryKeys(limit) {
+      return getOrderedEntryKeys().slice(-limit);
+    }
+
+    function getLastNDates(endDateKey, count) {
+      return Array.from({ length: count }, (_, index) => {
+        const date = parseDateKey(endDateKey);
+        date.setDate(date.getDate() - (count - index - 1));
+        const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 10);
+      });
+    }
+
+    function getWeeklySummary(endDateKey) {
+      const dates = getLastNDates(endDateKey, 7);
+      const populated = dates.map((dateKey) => {
+        const entry = state.entries[dateKey];
+        if (!entry) {
+          return null;
+        }
+        return {
+          dateKey,
+          entry: ensureEntry(dateKey),
+          metrics: calculateMetrics(dateKey)
+        };
+      }).filter(Boolean);
+
+      const workoutsDone = populated.filter((item) => item.entry.workoutDone).length;
+      const avgSteps = populated.length
+        ? round(populated.reduce((sum, item) => sum + toNumber(item.entry.steps), 0) / populated.length)
+        : 0;
+      const avgProtein = populated.length
+        ? roundOne(populated.reduce((sum, item) => sum + item.metrics.protein, 0) / populated.length)
+        : 0;
+      const avgDeficit = populated.length
+        ? round(populated.reduce((sum, item) => sum + item.metrics.deficit, 0) / populated.length)
+        : 0;
+      const avgAdherence = populated.length
+        ? round(populated.reduce((sum, item) => sum + item.metrics.adherenceScore, 0) / populated.length)
+        : 0;
+      const avgBurn = populated.length
+        ? round(populated.reduce((sum, item) => sum + item.metrics.caloriesBurnt, 0) / populated.length)
+        : 0;
+      const avgWater = populated.length
+        ? roundOne(populated.reduce((sum, item) => sum + item.metrics.waterLiters, 0) / populated.length)
+        : 0;
+      const weights = populated.map((item) => toNumber(item.entry.weight)).filter(Boolean);
+      const weightChange = weights.length >= 2 ? roundOne(weights[0] - weights[weights.length - 1]) : 0;
+
+      const suggestions = [];
+      if (avgAdherence >= 80 && Math.abs(weightChange) < 0.3 && populated.length >= 5) {
+        suggestions.push("Plateau signal: keep protein high and either trim 100 to 150 kcal or add 2k daily steps next week.");
+      }
+      if (avgProtein < state.profile.proteinTarget) {
+        suggestions.push("Average protein is low. Add tofu, Greek yogurt, whey, or egg whites to one more meal.");
+      }
+      if (avgSteps < state.profile.stepTarget) {
+        suggestions.push("Average steps are below target. A fixed post-dinner walk will improve consistency.");
+      }
+      if (avgWater > 0 && avgWater < state.profile.waterTargetLiters) {
+        suggestions.push(`Average hydration is low. Push daily water closer to ${state.profile.waterTargetLiters} L.`);
+      }
+      if (workoutsDone < 5) {
+        suggestions.push("Training frequency slipped this week. Protect the key strength days before adding more cardio.");
+      }
+      if (suggestions.length === 0) {
+        suggestions.push("The week looks steady. Stay consistent before making any new calorie cuts.");
+      }
+
+      return {
+        loggedDays: populated.length,
+        workoutsDone,
+        avgSteps,
+        avgProtein,
+        avgDeficit,
+        avgAdherence,
+        avgBurn,
+        avgWater,
+        weightChange,
+        suggestions
+      };
+    }
+
+    function buildHeaderStats(dateKey) {
+      const metrics = calculateMetrics(dateKey);
+      const currentWeight = ensureEntry(dateKey).weight || state.profile.currentWeight;
+
+      return [
+        { label: "Day", value: dayNumber(dateKey) + " / 90" },
+        { label: "Weight", value: currentWeight ? currentWeight + " kg" : "--" },
+        { label: "Deficit", value: metrics.deficit + " kcal" },
+        { label: "Adherence", value: metrics.adherenceScore + "%" }
+      ];
+    }
+
+    function renderHeader() {
+      document.getElementById("entryDate").value = state.selectedDate;
+      document.getElementById("headerStats").innerHTML = buildHeaderStats(state.selectedDate).map((item) => `
+        <div class="metric">
+          <span class="muted">${item.label}</span>
+          <strong>${item.value}</strong>
+        </div>
+      `).join("");
+    }
+
+    function renderSaveNote() {
+      const note = document.getElementById("saveNote");
+      const localText = !state.lastSavedAt
+        ? "Entries are saved in your browser."
+        : "Saved locally at " + new Date(state.lastSavedAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      const syncText = hasRemoteConfig()
+        ? `Cloud: ${remoteStatusLabel()}`
+        : "Cloud: local only";
+      note.textContent = `${localText} • ${syncText}`;
+    }
+
+    function renderTabs() {
+      document.querySelectorAll(".tab-button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.view === state.currentView);
+      });
+      document.querySelectorAll(".view").forEach((view) => {
+        view.classList.toggle("active", view.id === state.currentView + "View");
+      });
+    }
+
+    function mealEstimateHint(mealMetric) {
+      if (!mealMetric.hasLog) {
+        return "Not logged yet. Example: 2 eggs, 200g curd, 1 roti.";
+      }
+      if (mealMetric.usedOverride && mealMetric.recognizedCount === 0) {
+        return "Calories overridden. Add recognizable foods if you want macro estimates too.";
+      }
+      if (mealMetric.usedOverride) {
+        return "Calories overridden. Macros still come from recognized foods.";
+      }
+      if (mealMetric.recognizedCount === 0) {
+        return "No food match found yet. Add details like whey, eggs, curd, tofu, roti, rice.";
+      }
+      return "Recognized foods: " + mealMetric.recognizedNames.join(", ");
+    }
+
+    function mealDisplayName(mealKey) {
+      return mealKey === "unplanned" ? "Unplanned snacks / meals" : titleCase(mealKey);
+    }
+
+    function renderMealEditor(mealKey, plannedMeal, mealLog, mealMetric) {
+      const hasPlannedMeal = Boolean(plannedMeal);
+      return `
+        <div class="exercise-card">
+          <div class="card-header">
+            <div>
+              <h3>${mealDisplayName(mealKey)}</h3>
+              <p class="muted">${hasPlannedMeal ? `Planned: ${plannedMeal.name}` : "Optional extra snacks, desserts, drinks, or meals"}</p>
+            </div>
+            <span class="tag ${mealMetric.hasLog ? "success" : "warn"}">${mealMetric.calories} kcal</span>
+          </div>
+
+          <div class="field-group" style="margin-bottom:10px;">
+            <label>Food details</label>
+            <textarea
+              class="textarea"
+              data-meal-key="${mealKey}"
+              data-meal-field="details"
+              placeholder="Example: 2 eggs, 200g curd, 1 roti"
+            >${escapeText(mealLog.details)}</textarea>
+          </div>
+
+          <div class="two-col">
+            <div class="field-group">
+              <label>Calories (optional)</label>
+              <input
+                class="input"
+                type="number"
+                value="${escapeValue(mealLog.caloriesOverride)}"
+                data-meal-key="${mealKey}"
+                data-meal-field="caloriesOverride"
+              >
+            </div>
+            <div class="field-group">
+              <label>Estimated macros</label>
+              <div class="input">${formatMacroLine(mealMetric)}</div>
+            </div>
+          </div>
+
+          <div class="inline-actions" style="margin-top:12px;">
+            ${hasPlannedMeal ? `<button class="mini-button" type="button" data-action="use-planned-meal" data-meal-key="${mealKey}">Use planned meal</button>` : ""}
+            <button class="ghost-button" type="button" data-action="clear-meal" data-meal-key="${mealKey}">Clear meal</button>
+          </div>
+
+          <p class="muted" style="margin-top:10px;">${mealEstimateHint(mealMetric)}</p>
+        </div>
+      `;
+    }
+
+    function renderDashboard() {
+      const entry = ensureEntry(state.selectedDate);
+      const metrics = calculateMetrics(state.selectedDate);
+      const feedback = buildDailyFeedback(state.selectedDate);
+      const dashboard = document.getElementById("dashboardView");
+
+      dashboard.innerHTML = `
+        <div class="grid">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2>${formatHumanDate(state.selectedDate)}</h2>
+                <p class="muted">Planned targets with actual meals and training for the selected day.</p>
+              </div>
+              <span class="tag primary">Planned: ${metrics.plan.name}</span>
+            </div>
+            <div class="metric-grid">
+              <div class="metric">
+                <span class="muted">Target calories</span>
+                <strong>${state.profile.calorieTarget}</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Target protein</span>
+                <strong>${state.profile.proteinTarget} g</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Body parts</span>
+                <strong>${metrics.actualBodyPart}</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Water target</span>
+                <strong>${state.profile.waterTargetLiters} L</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="split-grid">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Actual meals and macro estimates</h3>
+                  <p class="muted">Meal totals are computed from what you type, with optional calorie overrides.</p>
+                </div>
+              </div>
+              <div class="meal-list">
+                <div class="meal-row">
+                  <div>
+                    <strong>Water intake</strong>
+                    <p class="muted">Daily hydration log</p>
+                  </div>
+                  <div style="text-align:right">
+                    <strong>${metrics.waterLiters || 0} L</strong>
+                    <p class="muted">Target ${state.profile.waterTargetLiters} L</p>
+                  </div>
+                </div>
+                ${["breakfast", "lunch", "dinner", "unplanned"].map((mealKey) => {
+                  const mealMetric = metrics.mealBreakdown[mealKey];
+                  return `
+                    <div class="meal-row">
+                      <div>
+                        <strong>${mealDisplayName(mealKey)}</strong>
+                        <p class="muted">${mealMetric.details || "Not logged yet"}</p>
+                        ${metrics.meals[mealKey] ? `<p class="muted">Planned: ${metrics.meals[mealKey].name}</p>` : `<p class="muted">Optional extra intake outside the main meal plan</p>`}
+                      </div>
+                      <div style="text-align:right">
+                        <strong>${mealMetric.calories} kcal</strong>
+                        <p class="muted">${formatMacroLine(mealMetric)}</p>
+                      </div>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Actual workout log</h3>
+                  <p class="muted">Strength burn is estimated from body part, sets, reps, and logged weight.</p>
+                </div>
+              </div>
+              <div class="summary-list">
+                <div class="summary-row">
+                  <div>
+                    <strong>${metrics.actualBodyPart}</strong>
+                    <p class="muted">${metrics.completedSets} completed sets across ${entry.exerciseLogs.length} exercises</p>
+                  </div>
+                  <span class="tag success">${metrics.workoutCalories} kcal</span>
+                </div>
+                ${entry.exerciseLogs.map((exercise) => `
+                  <div class="summary-row">
+                    <div>
+                      <strong>${exercise.name}</strong>
+                      <p class="muted">${exercise.sets.length} sets logged</p>
+                    </div>
+                    <span class="tag primary">${exercise.sets.reduce((sum, set) => sum + toNumber(set.reps), 0)} reps</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          </div>
+
+          <div class="split-grid">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Live calculations</h3>
+                  <p class="muted">Updated from your saved meal details, cardio, and workout logger.</p>
+                </div>
+              </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="muted">Food calories</span>
+                  <strong>${metrics.foodCalories}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Protein</span>
+                  <strong>${metrics.protein} g</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Carbs</span>
+                  <strong>${metrics.carbs} g</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Fat</span>
+                  <strong>${metrics.fat} g</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Water</span>
+                  <strong>${metrics.waterLiters} L</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Strength burn</span>
+                  <strong>${metrics.workoutCalories}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Cardio burn</span>
+                  <strong>${metrics.cardioCalories}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Deficit</span>
+                  <strong>${metrics.deficit}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Adherence</span>
+                  <strong>${metrics.adherenceScore}%</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Smart feedback</h3>
+                  <p class="muted">Prompts based on calories, protein, steps, and workout completion.</p>
+                </div>
+              </div>
+              <div class="feedback-list">
+                ${feedback.map((item) => `
+                  <div class="feedback-item">
+                    <div>
+                      <strong>${item.title}</strong>
+                      <p class="muted">${item.body}</p>
+                    </div>
+                    <span class="tag ${item.tone}">${toneLabel(item.tone)}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLogView() {
+      const entry = ensureEntry(state.selectedDate);
+      const plan = getPlan(state.selectedDate);
+      const meals = getMeals(state.selectedDate);
+      const metrics = calculateMetrics(state.selectedDate);
+      const logView = document.getElementById("logView");
+
+      logView.innerHTML = `
+        <div class="grid">
+          <div class="split-grid">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h2>Daily nutrition log</h2>
+                  <p class="muted">Add meal details. The app estimates calories and macros from the foods you type.</p>
+                </div>
+                <span class="tag primary">${formatHumanDate(state.selectedDate)}</span>
+              </div>
+
+              <div class="field-group" style="margin-bottom:12px;">
+                <label for="weightInput">Weight</label>
+                <input class="input" id="weightInput" type="number" step="0.1" value="${escapeValue(entry.weight)}" data-field="weight">
+              </div>
+
+              <div class="field-group" style="margin-bottom:12px;">
+                <label>Water intake</label>
+                <div class="chip-wrap">
+                  ${[2, 3, 4, 5].map((liters) => `
+                    <button class="chip ${toNumber(entry.waterLiters) === liters ? "active" : ""}" type="button" data-water-preset="${liters}">
+                      ${liters} L
+                    </button>
+                  `).join("")}
+                </div>
+                <input class="input" type="number" step="0.1" value="${escapeValue(entry.waterLiters)}" data-field="waterLiters">
+              </div>
+
+              <div class="meal-list">
+                ${["breakfast", "lunch", "dinner", "unplanned"].map((mealKey) => renderMealEditor(
+                  mealKey,
+                  meals[mealKey] || null,
+                  entry.meals[mealKey],
+                  metrics.mealBreakdown[mealKey]
+                )).join("")}
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h2>Activity and cardio</h2>
+                  <p class="muted">Log steps, workout completion, cardio type, and calorie burn.</p>
+                </div>
+                <span class="tag success">${metrics.actualBodyPart}</span>
+              </div>
+
+              <div class="grid">
+                <div class="field-group">
+                  <label>Steps</label>
+                  <div class="chip-wrap">
+                    ${[6000, 8000, 10000, 12000].map((steps) => `
+                      <button class="chip ${toNumber(entry.steps) === steps ? "active" : ""}" type="button" data-step-preset="${steps}">
+                        ${steps / 1000}k
+                      </button>
+                    `).join("")}
+                  </div>
+                  <input class="input" type="number" value="${escapeValue(entry.steps)}" data-field="steps">
+                </div>
+
+                <div class="field-group">
+                  <label>Workout done</label>
+                  <div class="toggle-wrap">
+                    <button class="toggle ${entry.workoutDone ? "active" : ""}" type="button" data-workout="true">Yes</button>
+                    <button class="toggle ${!entry.workoutDone ? "active" : ""}" type="button" data-workout="false">No</button>
+                  </div>
+                </div>
+
+                <div class="field-group">
+                  <label for="workoutNotes">Workout notes</label>
+                  <textarea class="textarea" id="workoutNotes" data-field="workoutNotes">${escapeText(entry.workoutNotes)}</textarea>
+                </div>
+
+                <div class="field-group">
+                  <label>Cardio mode</label>
+                  <div class="chip-wrap">
+                    ${Object.keys(CARDIO_TYPES).map((mode) => `
+                      <button class="chip ${entry.cardioType === mode ? "active" : ""}" type="button" data-cardio-mode="${mode}">
+                        ${mode}
+                      </button>
+                    `).join("")}
+                  </div>
+                </div>
+
+                <div class="three-col">
+                  <div class="field-group">
+                    <label for="cardioDuration">Duration</label>
+                    <input class="input" id="cardioDuration" type="number" value="${escapeValue(entry.cardioDuration)}" data-field="cardioDuration">
+                  </div>
+                  <div class="field-group">
+                    <label for="cardioIntensity">Intensity</label>
+                    <select class="select" id="cardioIntensity" data-field="cardioIntensity">
+                      ${Object.keys(INTENSITY_FACTORS).map((intensity) => `
+                        <option value="${intensity}" ${entry.cardioIntensity === intensity ? "selected" : ""}>${intensity}</option>
+                      `).join("")}
+                    </select>
+                  </div>
+                  <div class="field-group">
+                    <label for="cardioCalories">Calories burnt</label>
+                    <input class="input" id="cardioCalories" type="number" value="${escapeValue(entry.cardioCalories)}" data-field="cardioCalories">
+                  </div>
+                </div>
+
+                <button class="ghost-button" type="button" data-action="recalculate-cardio">Recalculate cardio calories</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2>Workout logger</h2>
+                <p class="muted">Change the body part, load a matching template, edit exercises, and add extra work.</p>
+              </div>
+              <span class="tag primary">Planned: ${plan.shortName}</span>
+            </div>
+
+            <div class="grid" style="margin-bottom:12px;">
+              <div class="field-group">
+                <label>Body parts exercised</label>
+                <div class="input">${metrics.actualBodyPart}</div>
+              </div>
+
+              <div class="chip-wrap">
+                ${BODY_PART_OPTIONS.map((part) => `
+                  <button
+                    class="chip ${entry.actualBodyParts.includes(part) ? "active" : ""}"
+                    type="button"
+                    data-bodypart-preset="${part}"
+                  >
+                    ${part}
+                  </button>
+                `).join("")}
+              </div>
+
+              <div class="inline-actions">
+                <button class="mini-button" type="button" data-action="apply-bodypart-template">Load matching template</button>
+                <button class="mini-button" type="button" data-action="add-exercise">Add exercise</button>
+                <button class="mini-button" type="button" data-action="reset-plan">Reset to planned workout</button>
+              </div>
+
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="muted">Strength burn</span>
+                  <strong>${metrics.workoutCalories} kcal</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Body part factor</span>
+                  <strong>${getBodyPartFactor(metrics.actualBodyParts)}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Completed sets</span>
+                  <strong>${metrics.completedSets}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Workout volume</span>
+                  <strong>${metrics.workoutVolume}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Total reps</span>
+                  <strong>${metrics.totalReps}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="exercise-list">
+              ${entry.exerciseLogs.map((exercise, exerciseIndex) => `
+                <div class="exercise-card">
+                  <div class="exercise-header">
+                    <div class="exercise-title">
+                      <div class="field-group">
+                        <label>Exercise name</label>
+                        <input
+                          class="input"
+                          type="text"
+                          value="${escapeValue(exercise.name)}"
+                          data-exercise-index="${exerciseIndex}"
+                          data-exercise-field="name"
+                        >
+                      </div>
+                    </div>
+                    <div class="field-group" style="width:96px;">
+                      <label>Sets</label>
+                      <input
+                        class="input"
+                        type="number"
+                        min="1"
+                        value="${exercise.sets.length}"
+                        data-exercise-index="${exerciseIndex}"
+                        data-exercise-field="setCount"
+                      >
+                    </div>
+                    <button class="ghost-button" type="button" data-action="remove-exercise" data-exercise-index="${exerciseIndex}">
+                      Remove
+                    </button>
+                  </div>
+
+                  <div class="set-list">
+                    ${exercise.sets.map((set, setIndex) => `
+                      <div class="set-row">
+                        <div class="set-grid">
+                          <div class="field-group">
+                            <label>Set</label>
+                            <div class="input">${setIndex + 1}</div>
+                          </div>
+                          <div class="field-group">
+                            <label>Weight</label>
+                            <input
+                              class="input"
+                              type="number"
+                              step="0.5"
+                              value="${escapeValue(set.weight)}"
+                              data-exercise-index="${exerciseIndex}"
+                              data-set-index="${setIndex}"
+                              data-set-field="weight"
+                            >
+                          </div>
+                          <div class="field-group">
+                            <label>Reps / sec</label>
+                            <input
+                              class="input"
+                              type="number"
+                              value="${escapeValue(set.reps)}"
+                              data-exercise-index="${exerciseIndex}"
+                              data-set-index="${setIndex}"
+                              data-set-field="reps"
+                            >
+                          </div>
+                        </div>
+                        <button class="ghost-button" type="button" data-action="remove-set" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
+                          Remove set
+                        </button>
+                      </div>
+                    `).join("")}
+                  </div>
+
+                  <div class="inline-actions" style="margin-top:12px;">
+                    <button class="mini-button" type="button" data-action="add-set" data-exercise-index="${exerciseIndex}">
+                      Add set
+                    </button>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+
+            <button class="action-button" type="button" data-action="save-entry">Save today's log</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProgressView() {
+      const progressView = document.getElementById("progressView");
+      const chartDates = getLastNDates(state.selectedDate, 14);
+      const chartItems = chartDates.map((dateKey) => {
+        const entry = state.entries[dateKey];
+        return {
+          dateKey,
+          weight: entry ? toNumber(entry.weight) : 0,
+          adherence: entry ? calculateMetrics(dateKey).adherenceScore : 0
+        };
+      });
+      const weights = chartItems.map((item) => item.weight).filter(Boolean);
+      const minWeight = weights.length ? Math.min(...weights) : state.profile.goalWeight;
+      const maxWeight = weights.length ? Math.max(...weights) : state.profile.currentWeight;
+      const range = Math.max(1, maxWeight - minWeight);
+      const recentHistory = getRecentEntryKeys(10).reverse();
+
+      progressView.innerHTML = `
+        <div class="grid progress-grid">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2>Weight trend</h2>
+                <p class="muted">Recent 14-day trend based on your saved weigh-ins.</p>
+              </div>
+            </div>
+            ${weights.length ? `
+              <div class="chart">
+                ${chartItems.map((item) => {
+                  const hasWeight = item.weight > 0;
+                  const height = hasWeight ? 20 + ((item.weight - minWeight) / range) * 120 : 8;
+                  const tone = item.adherence >= 80 ? "good" : item.adherence >= 60 ? "" : "warn";
+                  return `
+                    <div class="bar-group">
+                      <div class="bar ${tone}" style="height:${height}px;"></div>
+                      <div class="bar-label">${formatShortDate(item.dateKey)}</div>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            ` : `
+              <div class="empty-state">Add weigh-ins in the daily log to populate the chart.</div>
+            `}
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2>Weekly averages</h2>
+                <p class="muted">Based on the last 7 logged days up to the selected date.</p>
+              </div>
+            </div>
+            ${renderWeeklyAverageCards()}
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="card-header">
+            <div>
+              <h2>Recent log history</h2>
+              <p class="muted">Quick review of the latest saved entries.</p>
+            </div>
+          </div>
+          ${recentHistory.length ? `
+            <div class="history-list">
+              ${recentHistory.map((dateKey) => {
+                const entry = ensureEntry(dateKey);
+                const metrics = calculateMetrics(dateKey);
+                return `
+                  <div class="history-row">
+                    <div>
+                      <strong>${formatHumanDate(dateKey)}</strong>
+                      <p class="muted">${metrics.actualBodyPart}</p>
+                    </div>
+                    <div style="text-align:right;">
+                      <strong>${entry.weight || "--"} kg</strong>
+                      <p class="muted">${metrics.adherenceScore}% adherence</p>
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          ` : `
+            <div class="empty-state">No history yet. Save a day log to start tracking progress.</div>
+          `}
+        </div>
+      `;
+    }
+
+    function renderWeeklyAverageCards() {
+      const summary = getWeeklySummary(state.selectedDate);
+      return `
+        <div class="metric-grid">
+          <div class="metric">
+            <span class="muted">Logged days</span>
+            <strong>${summary.loggedDays}</strong>
+          </div>
+          <div class="metric">
+            <span class="muted">Workouts done</span>
+            <strong>${summary.workoutsDone}</strong>
+          </div>
+          <div class="metric">
+            <span class="muted">Avg steps</span>
+            <strong>${summary.avgSteps}</strong>
+          </div>
+          <div class="metric">
+            <span class="muted">Avg protein</span>
+            <strong>${summary.avgProtein} g</strong>
+          </div>
+          <div class="metric">
+            <span class="muted">Avg water</span>
+            <strong>${summary.avgWater} L</strong>
+          </div>
+          <div class="metric">
+            <span class="muted">Avg burn</span>
+            <strong>${summary.avgBurn}</strong>
+          </div>
+          <div class="metric">
+            <span class="muted">Avg deficit</span>
+            <strong>${summary.avgDeficit}</strong>
+          </div>
+          <div class="metric">
+            <span class="muted">Avg adherence</span>
+            <strong>${summary.avgAdherence}%</strong>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSummaryView() {
+      const summaryView = document.getElementById("summaryView");
+      const summary = getWeeklySummary(state.selectedDate);
+      const feedback = buildDailyFeedback(state.selectedDate);
+      const lastRemoteSync = remoteRuntime.lastSyncAt
+        ? new Date(remoteRuntime.lastSyncAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+        : "Not synced yet";
+
+      summaryView.innerHTML = `
+        <div class="grid">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2>Weekly scorecard</h2>
+                <p class="muted">A quick view of how the current week is trending.</p>
+              </div>
+              <span class="tag primary">Ending ${formatHumanDate(state.selectedDate)}</span>
+            </div>
+            <div class="metric-grid">
+              <div class="metric">
+                <span class="muted">Workouts</span>
+                <strong>${summary.workoutsDone} / 7</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Avg steps</span>
+                <strong>${summary.avgSteps}</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Avg protein</span>
+                <strong>${summary.avgProtein} g</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Avg water</span>
+                <strong>${summary.avgWater} L</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Avg adherence</span>
+                <strong>${summary.avgAdherence}%</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Weight change</span>
+                <strong>${formatWeightDelta(summary.weightChange)}</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Avg deficit</span>
+                <strong>${summary.avgDeficit}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2>Remote sync with Supabase</h2>
+                <p class="muted">Use the same Supabase project and email on each device to keep one shared tracker.</p>
+              </div>
+              <span class="tag ${remoteRuntime.tone}">${remoteStatusLabel()}</span>
+            </div>
+            <div class="grid">
+              <div class="field-group">
+                <label>Supabase URL</label>
+                <input class="input" type="text" value="${escapeValue(state.remote.url)}" data-remote-field="url" placeholder="https://your-project.supabase.co">
+              </div>
+              <div class="field-group">
+                <label>Supabase anon key</label>
+                <textarea class="textarea" data-remote-field="anonKey" placeholder="Paste the public anon key here">${escapeText(state.remote.anonKey)}</textarea>
+              </div>
+              <div class="field-group">
+                <label>Email for magic link sign-in</label>
+                <input class="input" type="email" value="${escapeValue(state.remote.email)}" data-remote-field="email" placeholder="you@example.com">
+              </div>
+              <div class="inline-actions">
+                <button class="mini-button" type="button" data-action="remote-magic-link">Send magic link</button>
+                <button class="mini-button" type="button" data-action="remote-restore-session">Restore session</button>
+                <button class="mini-button" type="button" data-action="remote-push">Push local data</button>
+                <button class="mini-button" type="button" data-action="remote-pull">Pull cloud data</button>
+                <button class="ghost-button" type="button" data-action="remote-signout">Sign out</button>
+              </div>
+              <div class="metric-grid">
+                <div class="metric">
+                  <span class="muted">Sync status</span>
+                  <strong>${remoteStatusLabel()}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Last cloud sync</span>
+                  <strong>${lastRemoteSync}</strong>
+                </div>
+              </div>
+              <p class="muted">Run the SQL in <code>supabase-schema.sql</code> once inside Supabase SQL Editor, then enter the project URL and anon key here.</p>
+            </div>
+          </div>
+
+          <div class="split-grid">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h2>Auto suggestions</h2>
+                  <p class="muted">Use these when progress stalls or adherence drops.</p>
+                </div>
+              </div>
+              <div class="feedback-list">
+                ${summary.suggestions.map((text) => `
+                  <div class="feedback-item">
+                    <div>
+                      <strong>Next step</strong>
+                      <p class="muted">${text}</p>
+                    </div>
+                    <span class="tag warn">Plan</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h2>Today's feedback recap</h2>
+                  <p class="muted">A second pass over the current day before closing it out.</p>
+                </div>
+              </div>
+              <div class="feedback-list">
+                ${feedback.map((item) => `
+                  <div class="feedback-item">
+                    <div>
+                      <strong>${item.title}</strong>
+                      <p class="muted">${item.body}</p>
+                    </div>
+                    <span class="tag ${item.tone}">${toneLabel(item.tone)}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function render() {
+      ensureEntry(state.selectedDate);
+      renderHeader();
+      renderSaveNote();
+      renderTabs();
+      renderDashboard();
+      renderLogView();
+      renderProgressView();
+      renderSummaryView();
+    }
+
+    function updateExerciseSetCount(exercise, nextCount) {
+      const count = clamp(toNumber(nextCount) || 1, 1, 12);
+      while (exercise.sets.length < count) {
+        const lastReps = exercise.sets[exercise.sets.length - 1]?.reps || "";
+        exercise.sets.push({ weight: "", reps: lastReps });
+      }
+      while (exercise.sets.length > count) {
+        exercise.sets.pop();
+      }
+    }
+
+    function shiftSelectedDate(days) {
+      const nextDate = parseDateKey(state.selectedDate);
+      nextDate.setDate(nextDate.getDate() + days);
+      const local = new Date(nextDate.getTime() - nextDate.getTimezoneOffset() * 60000);
+      state.selectedDate = local.toISOString().slice(0, 10);
+      ensureEntry(state.selectedDate);
+    }
+
+    function toggleBodyPartSelection(entry, bodyPart) {
+      const currentParts = new Set(getActualBodyParts(entry, state.selectedDate));
+
+      if (bodyPart === "Rest") {
+        entry.actualBodyParts = ["Rest"];
+        syncActualBodyPartLabel(entry);
+        return;
+      }
+
+      currentParts.delete("Rest");
+
+      if (currentParts.has(bodyPart)) {
+        if (currentParts.size === 1) {
+          syncActualBodyPartLabel(entry);
+          return;
+        }
+        currentParts.delete(bodyPart);
+      } else {
+        currentParts.add(bodyPart);
+      }
+
+      entry.actualBodyParts = normalizeBodyPartList(Array.from(currentParts));
+      syncActualBodyPartLabel(entry);
+    }
+
+    function handleChange(event) {
+      const target = event.target;
+      const entry = ensureEntry(state.selectedDate);
+
+      if (target.id === "entryDate") {
+        state.selectedDate = target.value || todayKey();
+        ensureEntry(state.selectedDate);
+        saveState();
+        render();
+        return;
+      }
+
+      if (target.dataset.remoteField) {
+        state.remote[target.dataset.remoteField] = target.value;
+        if (target.dataset.remoteField === "url" || target.dataset.remoteField === "anonKey") {
+          resetRemoteClient();
+          setRemoteStatus(hasRemoteConfig() ? "Configured. Restore session or send a magic link." : "Local only", hasRemoteConfig() ? "warn" : "primary");
+        }
+        saveState({ queueRemote: false });
+        render();
+        return;
+      }
+
+      if (target.dataset.mealField) {
+        const mealKey = target.dataset.mealKey;
+        entry.meals[mealKey][target.dataset.mealField] = target.value;
+        saveState();
+        render();
+        return;
+      }
+
+      if (target.dataset.field) {
+        entry[target.dataset.field] = target.value;
+        if (["cardioType", "cardioDuration", "cardioIntensity"].includes(target.dataset.field)) {
+          syncCardioEstimate(entry);
+        }
+        saveState();
+        render();
+        return;
+      }
+
+      if (target.dataset.exerciseField) {
+        const exercise = entry.exerciseLogs[toNumber(target.dataset.exerciseIndex)];
+        if (!exercise) {
+          return;
+        }
+        if (target.dataset.exerciseField === "setCount") {
+          updateExerciseSetCount(exercise, target.value);
+        } else {
+          exercise[target.dataset.exerciseField] = target.value;
+        }
+        saveState();
+        render();
+        return;
+      }
+
+      if (target.dataset.setField) {
+        const exercise = entry.exerciseLogs[toNumber(target.dataset.exerciseIndex)];
+        const set = exercise?.sets[toNumber(target.dataset.setIndex)];
+        if (!set) {
+          return;
+        }
+        set[target.dataset.setField] = target.value;
+        saveState();
+        render();
+      }
+    }
+
+    function handleClick(event) {
+      const button = event.target.closest("button");
+      if (!button) {
+        return;
+      }
+
+      if (button.dataset.view) {
+        state.currentView = button.dataset.view;
+        saveState();
+        render();
+        return;
+      }
+
+      const entry = ensureEntry(state.selectedDate);
+
+      if (button.dataset.action === "prev-day") {
+        shiftSelectedDate(-1);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "today") {
+        state.selectedDate = todayKey();
+        ensureEntry(state.selectedDate);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "next-day") {
+        shiftSelectedDate(1);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "remote-magic-link") {
+        sendMagicLink();
+        return;
+      }
+
+      if (button.dataset.action === "remote-restore-session") {
+        restoreRemoteSession();
+        return;
+      }
+
+      if (button.dataset.action === "remote-push") {
+        pushRemoteState();
+        return;
+      }
+
+      if (button.dataset.action === "remote-pull") {
+        pullRemoteState();
+        return;
+      }
+
+      if (button.dataset.action === "remote-signout") {
+        signOutRemote();
+        return;
+      }
+
+      if (button.dataset.stepPreset) {
+        entry.steps = button.dataset.stepPreset;
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.waterPreset) {
+        entry.waterLiters = button.dataset.waterPreset;
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.workout) {
+        entry.workoutDone = button.dataset.workout === "true";
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.cardioMode) {
+        entry.cardioType = button.dataset.cardioMode;
+        syncCardioEstimate(entry);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.bodypartPreset) {
+        toggleBodyPartSelection(entry, button.dataset.bodypartPreset);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "use-planned-meal") {
+        const mealKey = button.dataset.mealKey;
+        entry.meals[mealKey].details = getMeals(state.selectedDate)[mealKey].name;
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "clear-meal") {
+        const mealKey = button.dataset.mealKey;
+        entry.meals[mealKey] = createEmptyMealLog();
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "recalculate-cardio") {
+        syncCardioEstimate(entry);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "apply-bodypart-template") {
+        entry.exerciseLogs = buildExercisesForBodyParts(getActualBodyParts(entry, state.selectedDate));
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "add-exercise") {
+        entry.exerciseLogs.push({
+          name: "New exercise",
+          sets: [
+            { weight: "", reps: "" },
+            { weight: "", reps: "" }
+          ]
+        });
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "remove-exercise") {
+        entry.exerciseLogs.splice(toNumber(button.dataset.exerciseIndex), 1);
+        if (entry.exerciseLogs.length === 0) {
+          entry.exerciseLogs.push({
+            name: "New exercise",
+            sets: [{ weight: "", reps: "" }]
+          });
+        }
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "add-set") {
+        const exercise = entry.exerciseLogs[toNumber(button.dataset.exerciseIndex)];
+        if (exercise) {
+          const lastReps = exercise.sets[exercise.sets.length - 1]?.reps || "";
+          exercise.sets.push({ weight: "", reps: lastReps });
+          saveState();
+          render();
+        }
+        return;
+      }
+
+      if (button.dataset.action === "remove-set") {
+        const exercise = entry.exerciseLogs[toNumber(button.dataset.exerciseIndex)];
+        if (exercise && exercise.sets.length > 1) {
+          exercise.sets.splice(toNumber(button.dataset.setIndex), 1);
+          saveState();
+          render();
+        }
+        return;
+      }
+
+      if (button.dataset.action === "reset-plan") {
+        const plan = getPlan(state.selectedDate);
+        entry.actualBodyParts = getDefaultBodyPartsForPlan(plan.name);
+        syncActualBodyPartLabel(entry);
+        entry.exerciseLogs = plan.exercises.map(createExerciseLog);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "save-entry") {
+        saveState();
+        render();
+      }
+    }
+
+    document.addEventListener("change", handleChange);
+    document.addEventListener("click", handleClick);
+
+    render();
+    restoreRemoteSession({ silent: true }).then(() => render());
+  </script>
+</body>
+</html>
