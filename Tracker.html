@@ -791,11 +791,12 @@
     const REMOTE_REDIRECT = typeof window !== "undefined"
       ? window.location.href.split("#")[0].split("?")[0]
       : "";
+    const TRACKER_START_DATE = "2026-03-24";
 
     const DEFAULT_STATE = {
       version: 4,
-      startDate: todayKey(),
-      selectedDate: todayKey(),
+      startDate: TRACKER_START_DATE,
+      selectedDate: TRACKER_START_DATE,
       currentView: "dashboard",
       lastSavedAt: null,
       profile: {
@@ -836,6 +837,10 @@
       const now = new Date();
       const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
       return local.toISOString().slice(0, 10);
+    }
+
+    function maxDateKey(first, second) {
+      return first >= second ? first : second;
     }
 
     function parseDateKey(dateKey) {
@@ -906,6 +911,31 @@
       return value > 0 ? `-${value} kg` : `+${Math.abs(value)} kg`;
     }
 
+    function describeEnergyBalance(value) {
+      if (value > 0) {
+        return {
+          label: "Deficit",
+          shortLabel: "Deficit",
+          avgLabel: "Avg deficit",
+          valueText: `${Math.abs(value)} kcal`
+        };
+      }
+      if (value < 0) {
+        return {
+          label: "Surplus",
+          shortLabel: "Surplus",
+          avgLabel: "Avg surplus",
+          valueText: `${Math.abs(value)} kcal`
+        };
+      }
+      return {
+        label: "Balanced",
+        shortLabel: "Balanced",
+        avgLabel: "Avg energy balance",
+        valueText: "0 kcal"
+      };
+    }
+
     function toneLabel(tone) {
       if (tone === "success") {
         return "Good";
@@ -938,6 +968,26 @@
       return `${nutrition.protein}P / ${nutrition.carbs}C / ${nutrition.fat}F`;
     }
 
+    function pruneEntriesBeforeBaseline(entries) {
+      const nextEntries = {};
+      Object.entries(entries || {}).forEach(([dateKey, entry]) => {
+        if (dateKey >= TRACKER_START_DATE) {
+          nextEntries[dateKey] = entry;
+        }
+      });
+      return nextEntries;
+    }
+
+    function applyBaselineRules(baseState) {
+      const nextState = {
+        ...baseState,
+        startDate: TRACKER_START_DATE,
+        selectedDate: maxDateKey(baseState.selectedDate || TRACKER_START_DATE, TRACKER_START_DATE),
+        entries: pruneEntriesBeforeBaseline(baseState.entries)
+      };
+      return nextState;
+    }
+
     function loadState() {
       try {
         const saved = JSON.parse(
@@ -948,9 +998,11 @@
           "null"
         );
         if (!saved) {
-          return cloneData(DEFAULT_STATE);
+          const normalizedDefaultState = applyBaselineRules(cloneData(DEFAULT_STATE));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedDefaultState));
+          return normalizedDefaultState;
         }
-        return {
+        const normalizedState = applyBaselineRules({
           ...cloneData(DEFAULT_STATE),
           ...saved,
           profile: {
@@ -962,9 +1014,13 @@
             ...(saved.remote || {})
           },
           entries: saved.entries || {}
-        };
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedState));
+        return normalizedState;
       } catch (error) {
-        return cloneData(DEFAULT_STATE);
+        const normalizedDefaultState = applyBaselineRules(cloneData(DEFAULT_STATE));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedDefaultState));
+        return normalizedDefaultState;
       }
     }
 
@@ -1061,12 +1117,13 @@
     }
 
     function applyRemotePayload(payload) {
-      state.startDate = payload.startDate || state.startDate;
+      state.startDate = TRACKER_START_DATE;
       state.profile = {
         ...state.profile,
         ...(payload.profile || {})
       };
-      state.entries = payload.entries || {};
+      state.entries = pruneEntriesBeforeBaseline(payload.entries || {});
+      state.selectedDate = maxDateKey(state.selectedDate, TRACKER_START_DATE);
       ensureEntry(state.selectedDate);
     }
 
@@ -1803,7 +1860,7 @@
     }
 
     function getOrderedEntryKeys() {
-      return Object.keys(state.entries).sort();
+      return Object.keys(state.entries).filter((dateKey) => dateKey >= TRACKER_START_DATE).sort();
     }
 
     function getRecentEntryKeys(limit) {
@@ -1816,7 +1873,7 @@
         date.setDate(date.getDate() - (count - index - 1));
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
         return local.toISOString().slice(0, 10);
-      });
+      }).filter((dateKey) => dateKey >= TRACKER_START_DATE);
     }
 
     function getWeeklySummary(endDateKey) {
@@ -1892,17 +1949,19 @@
     function buildHeaderStats(dateKey) {
       const metrics = calculateMetrics(dateKey);
       const currentWeight = ensureEntry(dateKey).weight || state.profile.currentWeight;
+      const energyBalance = describeEnergyBalance(metrics.deficit);
 
       return [
         { label: "Day", value: dayNumber(dateKey) + " / 90" },
         { label: "Weight", value: currentWeight ? currentWeight + " kg" : "--" },
-        { label: "Deficit", value: metrics.deficit + " kcal" },
+        { label: energyBalance.label, value: energyBalance.valueText },
         { label: "Adherence", value: metrics.adherenceScore + "%" }
       ];
     }
 
     function renderHeader() {
       document.getElementById("entryDate").value = state.selectedDate;
+      document.getElementById("entryDate").min = TRACKER_START_DATE;
       document.getElementById("headerStats").innerHTML = buildHeaderStats(state.selectedDate).map((item) => `
         <div class="metric">
           <span class="muted">${item.label}</span>
@@ -2007,6 +2066,7 @@
       const entry = ensureEntry(state.selectedDate);
       const metrics = calculateMetrics(state.selectedDate);
       const feedback = buildDailyFeedback(state.selectedDate);
+      const energyBalance = describeEnergyBalance(metrics.deficit);
       const dashboard = document.getElementById("dashboardView");
 
       dashboard.innerHTML = `
@@ -2143,8 +2203,8 @@
                   <strong>${metrics.cardioCalories}</strong>
                 </div>
                 <div class="metric">
-                  <span class="muted">Deficit</span>
-                  <strong>${metrics.deficit}</strong>
+                  <span class="muted">${energyBalance.label}</span>
+                  <strong>${energyBalance.valueText}</strong>
                 </div>
                 <div class="metric">
                   <span class="muted">Adherence</span>
@@ -2527,6 +2587,7 @@
 
     function renderWeeklyAverageCards() {
       const summary = getWeeklySummary(state.selectedDate);
+      const avgEnergyBalance = describeEnergyBalance(summary.avgDeficit);
       return `
         <div class="metric-grid">
           <div class="metric">
@@ -2554,8 +2615,8 @@
             <strong>${summary.avgBurn}</strong>
           </div>
           <div class="metric">
-            <span class="muted">Avg deficit</span>
-            <strong>${summary.avgDeficit}</strong>
+            <span class="muted">${avgEnergyBalance.avgLabel}</span>
+            <strong>${avgEnergyBalance.valueText}</strong>
           </div>
           <div class="metric">
             <span class="muted">Avg adherence</span>
@@ -2569,6 +2630,7 @@
       const summaryView = document.getElementById("summaryView");
       const summary = getWeeklySummary(state.selectedDate);
       const feedback = buildDailyFeedback(state.selectedDate);
+      const avgEnergyBalance = describeEnergyBalance(summary.avgDeficit);
       const lastRemoteSync = remoteRuntime.lastSyncAt
         ? new Date(remoteRuntime.lastSyncAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
         : "Not synced yet";
@@ -2609,8 +2671,8 @@
                 <strong>${formatWeightDelta(summary.weightChange)}</strong>
               </div>
               <div class="metric">
-                <span class="muted">Avg deficit</span>
-                <strong>${summary.avgDeficit}</strong>
+                <span class="muted">${avgEnergyBalance.avgLabel}</span>
+                <strong>${avgEnergyBalance.valueText}</strong>
               </div>
             </div>
           </div>
@@ -2728,7 +2790,7 @@
       const nextDate = parseDateKey(state.selectedDate);
       nextDate.setDate(nextDate.getDate() + days);
       const local = new Date(nextDate.getTime() - nextDate.getTimezoneOffset() * 60000);
-      state.selectedDate = local.toISOString().slice(0, 10);
+      state.selectedDate = maxDateKey(local.toISOString().slice(0, 10), TRACKER_START_DATE);
       ensureEntry(state.selectedDate);
     }
 
@@ -2762,7 +2824,7 @@
       const entry = ensureEntry(state.selectedDate);
 
       if (target.id === "entryDate") {
-        state.selectedDate = target.value || todayKey();
+        state.selectedDate = maxDateKey(target.value || todayKey(), TRACKER_START_DATE);
         ensureEntry(state.selectedDate);
         saveState();
         render();
@@ -2848,7 +2910,7 @@
       }
 
       if (button.dataset.action === "today") {
-        state.selectedDate = todayKey();
+        state.selectedDate = maxDateKey(todayKey(), TRACKER_START_DATE);
         ensureEntry(state.selectedDate);
         saveState();
         render();
