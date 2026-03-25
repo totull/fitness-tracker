@@ -372,6 +372,7 @@
 
     .two-col,
     .three-col,
+    .four-col,
     .metric-grid {
       display: grid;
       gap: 10px;
@@ -383,6 +384,10 @@
 
     .three-col {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .four-col {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     .metric-grid {
@@ -481,6 +486,7 @@
 
       .two-col,
       .three-col,
+      .four-col,
       .metric-grid,
       .set-grid {
         grid-template-columns: 1fr;
@@ -1336,7 +1342,10 @@
     function createEmptyMealLog() {
       return {
         details: "",
-        caloriesOverride: ""
+        caloriesOverride: "",
+        proteinOverride: "",
+        carbsOverride: "",
+        fatOverride: ""
       };
     }
 
@@ -1432,6 +1441,7 @@
           plan.name === "Rest Day" ? 20 : 30,
           "Moderate"
         )),
+        strengthCaloriesOverride: "",
         workoutNotes: "",
         exerciseLogs: plan.exercises.map(createExerciseLog)
       };
@@ -1505,6 +1515,11 @@
         changed = true;
       }
 
+      if (entry.strengthCaloriesOverride === undefined) {
+        entry.strengthCaloriesOverride = "";
+        changed = true;
+      }
+
       syncActualBodyPartLabel(entry);
 
       return changed;
@@ -1539,6 +1554,16 @@
       entry.cardioCalories = String(
         estimateCardioCalories(entry.cardioType, entry.cardioDuration, entry.cardioIntensity)
       );
+    }
+
+    function estimateStepCalories(steps, weightKg) {
+      const stepCount = toNumber(steps);
+      const currentWeight = toNumber(weightKg) || state.profile.currentWeight;
+      if (!stepCount || !currentWeight) {
+        return 0;
+      }
+      const distanceKm = stepCount * 0.000762;
+      return round(distanceKm * currentWeight * 0.53);
     }
 
     function hasAliasMatch(segment, alias) {
@@ -1626,16 +1651,32 @@
     function calculateMealNutrition(mealLog) {
       const details = mealLog?.details?.trim() || "";
       const estimated = estimateMealNutritionFromText(details);
-      const overrideCalories = mealLog?.caloriesOverride !== "" ? toNumber(mealLog.caloriesOverride) : null;
+      const caloriesOverrideValue = mealLog?.caloriesOverride ?? "";
+      const proteinOverrideValue = mealLog?.proteinOverride ?? "";
+      const carbsOverrideValue = mealLog?.carbsOverride ?? "";
+      const fatOverrideValue = mealLog?.fatOverride ?? "";
+      const overrideCalories = caloriesOverrideValue !== "" ? toNumber(caloriesOverrideValue) : null;
+      const overrideProtein = proteinOverrideValue !== "" ? toNumber(proteinOverrideValue) : null;
+      const overrideCarbs = carbsOverrideValue !== "" ? toNumber(carbsOverrideValue) : null;
+      const overrideFat = fatOverrideValue !== "" ? toNumber(fatOverrideValue) : null;
+      const usedMacroOverride = overrideProtein !== null || overrideCarbs !== null || overrideFat !== null;
 
       return {
         details,
-        hasLog: Boolean(details || mealLog?.caloriesOverride),
+        hasLog: Boolean(
+          details ||
+          caloriesOverrideValue !== "" ||
+          proteinOverrideValue !== "" ||
+          carbsOverrideValue !== "" ||
+          fatOverrideValue !== ""
+        ),
         calories: overrideCalories !== null ? overrideCalories : estimated.calories,
-        protein: estimated.protein,
-        carbs: estimated.carbs,
-        fat: estimated.fat,
-        usedOverride: overrideCalories !== null,
+        protein: roundOne(overrideProtein !== null ? overrideProtein : estimated.protein),
+        carbs: roundOne(overrideCarbs !== null ? overrideCarbs : estimated.carbs),
+        fat: roundOne(overrideFat !== null ? overrideFat : estimated.fat),
+        usedCaloriesOverride: overrideCalories !== null,
+        usedMacroOverride,
+        usedOverride: overrideCalories !== null || usedMacroOverride,
         recognizedCount: estimated.recognizedCount,
         recognizedNames: estimated.recognizedNames
       };
@@ -1702,7 +1743,7 @@
       return entry.exerciseLogs.filter((exercise) => exercise.name.trim()).length;
     }
 
-    function estimateWorkoutCalories(entry, bodyParts) {
+    function estimateWorkoutCalories(entry) {
       if (!entry.workoutDone) {
         return 0;
       }
@@ -1710,15 +1751,12 @@
       const completedSets = countCompletedSets(entry);
       const totalReps = calculateTotalReps(entry);
       const workoutVolume = calculateWorkoutVolume(entry);
-      const exerciseCount = countNamedExercises(entry);
-      const factor = getBodyPartFactor(bodyParts);
       const baseCalories =
-        (completedSets * 7) +
-        (exerciseCount * 8) +
+        (completedSets * 6) +
         Math.min(120, totalReps * 0.45) +
-        Math.min(140, workoutVolume / 240);
+        Math.min(180, workoutVolume / 200);
 
-      return round(baseCalories * factor);
+      return round(baseCalories);
     }
 
     function calculateMetrics(dateKey) {
@@ -1745,9 +1783,12 @@
       const workoutVolume = calculateWorkoutVolume(entry);
       const totalReps = calculateTotalReps(entry);
       const completedSets = countCompletedSets(entry);
-      const workoutCalories = estimateWorkoutCalories(entry, actualBodyParts);
+      const estimatedWorkoutCalories = estimateWorkoutCalories(entry);
+      const strengthCaloriesOverride = entry.strengthCaloriesOverride !== "" ? toNumber(entry.strengthCaloriesOverride) : null;
+      const workoutCalories = strengthCaloriesOverride !== null ? strengthCaloriesOverride : estimatedWorkoutCalories;
       const cardioCalories = toNumber(entry.cardioCalories);
-      const caloriesBurnt = workoutCalories + cardioCalories;
+      const stepCalories = estimateStepCalories(entry.steps, entry.weight || state.profile.currentWeight);
+      const caloriesBurnt = workoutCalories + cardioCalories + stepCalories;
       const deficit = round(state.profile.maintenanceCalories + caloriesBurnt - foodCalories);
       const waterLiters = roundOne(toNumber(entry.waterLiters));
 
@@ -1776,8 +1817,12 @@
         carbs: roundOne(carbs),
         fat: roundOne(fat),
         waterLiters,
+        estimatedWorkoutCalories,
+        strengthCaloriesOverride,
+        usedStrengthOverride: strengthCaloriesOverride !== null,
         workoutCalories,
         cardioCalories,
+        stepCalories,
         caloriesBurnt,
         deficit,
         workoutVolume,
@@ -1997,11 +2042,19 @@
       if (!mealMetric.hasLog) {
         return "Not logged yet. Example: 2 eggs, 200g curd, 1 roti.";
       }
-      if (mealMetric.usedOverride && mealMetric.recognizedCount === 0) {
-        return "Calories overridden. Add recognizable foods if you want macro estimates too.";
+      const manualParts = [];
+      if (mealMetric.usedCaloriesOverride) {
+        manualParts.push("calories");
       }
-      if (mealMetric.usedOverride) {
-        return "Calories overridden. Macros still come from recognized foods.";
+      if (mealMetric.usedMacroOverride) {
+        manualParts.push("macros");
+      }
+      if (manualParts.length) {
+        const prefix = `${titleCase(manualParts.join(" and "))} manually set.`;
+        if (mealMetric.recognizedCount === 0) {
+          return prefix + " Add food details if you want the automatic estimate too.";
+        }
+        return prefix + " Recognized foods: " + mealMetric.recognizedNames.join(", ");
       }
       if (mealMetric.recognizedCount === 0) {
         return "No food match found yet. Add details like whey, eggs, curd, tofu, roti, rice.";
@@ -2035,7 +2088,7 @@
             >${escapeText(mealLog.details)}</textarea>
           </div>
 
-          <div class="two-col">
+          <div class="four-col">
             <div class="field-group">
               <label>Calories (optional)</label>
               <input
@@ -2047,9 +2100,43 @@
               >
             </div>
             <div class="field-group">
-              <label>Estimated macros</label>
-              <div class="input">${formatMacroLine(mealMetric)}</div>
+              <label>Protein g</label>
+              <input
+                class="input"
+                type="number"
+                step="0.1"
+                value="${escapeValue(mealLog.proteinOverride)}"
+                data-meal-key="${mealKey}"
+                data-meal-field="proteinOverride"
+              >
             </div>
+            <div class="field-group">
+              <label>Carbs g</label>
+              <input
+                class="input"
+                type="number"
+                step="0.1"
+                value="${escapeValue(mealLog.carbsOverride)}"
+                data-meal-key="${mealKey}"
+                data-meal-field="carbsOverride"
+              >
+            </div>
+            <div class="field-group">
+              <label>Fat g</label>
+              <input
+                class="input"
+                type="number"
+                step="0.1"
+                value="${escapeValue(mealLog.fatOverride)}"
+                data-meal-key="${mealKey}"
+                data-meal-field="fatOverride"
+              >
+            </div>
+          </div>
+
+          <div class="field-group" style="margin-top:10px;">
+            <label>Current meal totals</label>
+            <div class="input">${mealMetric.calories} kcal • ${formatMacroLine(mealMetric)}</div>
           </div>
 
           <div class="inline-actions" style="margin-top:12px;">
@@ -2141,7 +2228,7 @@
               <div class="card-header">
                 <div>
                   <h3>Actual workout log</h3>
-                  <p class="muted">Strength burn is estimated from body part, sets, reps, and logged weight.</p>
+                  <p class="muted">${metrics.usedStrengthOverride ? `Using your manual strength burn entry. Auto estimate: ${metrics.estimatedWorkoutCalories} kcal.` : "Strength burn is estimated from your logged sets, reps, and weight."}</p>
                 </div>
               </div>
               <div class="summary-list">
@@ -2169,14 +2256,22 @@
             <div class="card">
               <div class="card-header">
                 <div>
-                  <h3>Live calculations</h3>
-                  <p class="muted">Updated from your saved meal details, cardio, and workout logger.</p>
+                  <h3>Daily energy summary</h3>
+                  <p class="muted">Meals in, activity burn out, and the day's calorie balance.</p>
                 </div>
               </div>
               <div class="metric-grid">
                 <div class="metric">
-                  <span class="muted">Food calories</span>
-                  <strong>${metrics.foodCalories}</strong>
+                  <span class="muted">Meal intake</span>
+                  <strong>${metrics.foodCalories} kcal</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Total burn</span>
+                  <strong>${metrics.caloriesBurnt} kcal</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">${energyBalance.label}</span>
+                  <strong>${energyBalance.valueText}</strong>
                 </div>
                 <div class="metric">
                   <span class="muted">Protein</span>
@@ -2196,15 +2291,15 @@
                 </div>
                 <div class="metric">
                   <span class="muted">Strength burn</span>
-                  <strong>${metrics.workoutCalories}</strong>
+                  <strong>${metrics.workoutCalories} kcal</strong>
                 </div>
                 <div class="metric">
                   <span class="muted">Cardio burn</span>
-                  <strong>${metrics.cardioCalories}</strong>
+                  <strong>${metrics.cardioCalories} kcal</strong>
                 </div>
                 <div class="metric">
-                  <span class="muted">${energyBalance.label}</span>
-                  <strong>${energyBalance.valueText}</strong>
+                  <span class="muted">Step burn</span>
+                  <strong>${metrics.stepCalories} kcal</strong>
                 </div>
                 <div class="metric">
                   <span class="muted">Adherence</span>
@@ -2242,6 +2337,7 @@
       const plan = getPlan(state.selectedDate);
       const meals = getMeals(state.selectedDate);
       const metrics = calculateMetrics(state.selectedDate);
+      const energyBalance = describeEnergyBalance(metrics.deficit);
       const logView = document.getElementById("logView");
 
       logView.innerHTML = `
@@ -2251,7 +2347,7 @@
               <div class="card-header">
                 <div>
                   <h2>Daily nutrition log</h2>
-                  <p class="muted">Add meal details. The app estimates calories and macros from the foods you type.</p>
+                  <p class="muted">Add meal details, or type the calories and macros directly when you already know them.</p>
                 </div>
                 <span class="tag primary">${formatHumanDate(state.selectedDate)}</span>
               </div>
@@ -2287,7 +2383,7 @@
               <div class="card-header">
                 <div>
                   <h2>Activity and cardio</h2>
-                  <p class="muted">Log steps, workout completion, cardio type, and calorie burn.</p>
+                  <p class="muted">Log steps, workout completion, cardio, and the day's calorie balance.</p>
                 </div>
                 <span class="tag success">${metrics.actualBodyPart}</span>
               </div>
@@ -2349,18 +2445,37 @@
                 </div>
 
                 <button class="ghost-button" type="button" data-action="recalculate-cardio">Recalculate cardio calories</button>
+
+                <div class="metric-grid">
+                  <div class="metric">
+                    <span class="muted">Meal intake</span>
+                    <strong>${metrics.foodCalories} kcal</strong>
+                  </div>
+                  <div class="metric">
+                    <span class="muted">Step burn</span>
+                    <strong>${metrics.stepCalories} kcal</strong>
+                  </div>
+                  <div class="metric">
+                    <span class="muted">Total burn</span>
+                    <strong>${metrics.caloriesBurnt} kcal</strong>
+                  </div>
+                  <div class="metric">
+                    <span class="muted">${energyBalance.label}</span>
+                    <strong>${energyBalance.valueText}</strong>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-header">
-              <div>
-                <h2>Workout logger</h2>
-                <p class="muted">Change the body part, load a matching template, edit exercises, and add extra work.</p>
+              <div class="card-header">
+                <div>
+                  <h2>Workout logger</h2>
+                  <p class="muted">Change the body part, load a matching template, edit exercises, and adjust the strength burn if needed.</p>
+                </div>
+                <span class="tag primary">Planned: ${plan.shortName}</span>
               </div>
-              <span class="tag primary">Planned: ${plan.shortName}</span>
-            </div>
 
             <div class="grid" style="margin-bottom:12px;">
               <div class="field-group">
@@ -2386,22 +2501,39 @@
                 <button class="mini-button" type="button" data-action="reset-plan">Reset to planned workout</button>
               </div>
 
+              <div class="field-group">
+                <label for="strengthCaloriesOverride">Strength burn</label>
+                <input
+                  class="input"
+                  id="strengthCaloriesOverride"
+                  type="number"
+                  value="${escapeValue(entry.strengthCaloriesOverride)}"
+                  placeholder="${metrics.estimatedWorkoutCalories}"
+                  data-field="strengthCaloriesOverride"
+                >
+                <p class="muted">Leave blank to use the live estimate of ${metrics.estimatedWorkoutCalories} kcal from your logged sets, reps, and weight.</p>
+              </div>
+
+              <div class="inline-actions">
+                <button class="ghost-button" type="button" data-action="use-estimated-strength">Use estimated strength burn</button>
+              </div>
+
               <div class="metric-grid">
                 <div class="metric">
-                  <span class="muted">Strength burn</span>
+                  <span class="muted">Current strength burn</span>
                   <strong>${metrics.workoutCalories} kcal</strong>
                 </div>
                 <div class="metric">
-                  <span class="muted">Body part factor</span>
-                  <strong>${getBodyPartFactor(metrics.actualBodyParts)}</strong>
+                  <span class="muted">Auto estimate</span>
+                  <strong>${metrics.estimatedWorkoutCalories} kcal</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Total burn today</span>
+                  <strong>${metrics.caloriesBurnt} kcal</strong>
                 </div>
                 <div class="metric">
                   <span class="muted">Completed sets</span>
                   <strong>${metrics.completedSets}</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Workout volume</span>
-                  <strong>${metrics.workoutVolume}</strong>
                 </div>
                 <div class="metric">
                   <span class="muted">Total reps</span>
@@ -2611,8 +2743,8 @@
             <strong>${summary.avgWater} L</strong>
           </div>
           <div class="metric">
-            <span class="muted">Avg burn</span>
-            <strong>${summary.avgBurn}</strong>
+            <span class="muted">Avg total burn</span>
+            <strong>${summary.avgBurn} kcal</strong>
           </div>
           <div class="metric">
             <span class="muted">${avgEnergyBalance.avgLabel}</span>
@@ -2867,6 +2999,7 @@
         }
         if (target.dataset.exerciseField === "setCount") {
           updateExerciseSetCount(exercise, target.value);
+          entry.workoutDone = true;
         } else {
           exercise[target.dataset.exerciseField] = target.value;
         }
@@ -2882,6 +3015,7 @@
           return;
         }
         set[target.dataset.setField] = target.value;
+        entry.workoutDone = true;
         saveState();
         render();
       }
@@ -3003,6 +3137,13 @@
 
       if (button.dataset.action === "recalculate-cardio") {
         syncCardioEstimate(entry);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "use-estimated-strength") {
+        entry.strengthCaloriesOverride = "";
         saveState();
         render();
         return;
