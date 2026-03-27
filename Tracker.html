@@ -921,8 +921,26 @@
       return Math.min(max, Math.max(min, value));
     }
 
+    function normalizeNumberish(value) {
+      const text = String(value ?? "").trim().replace(/\s+/g, "");
+      if (!text) {
+        return "";
+      }
+      if (text.includes(",") && text.includes(".")) {
+        return text.replace(/,/g, "");
+      }
+      if (text.includes(",")) {
+        const parts = text.split(",");
+        if (parts.length === 2 && parts[1].length > 0 && parts[1].length <= 2) {
+          return `${parts[0]}.${parts[1]}`;
+        }
+        return text.replace(/,/g, "");
+      }
+      return text;
+    }
+
     function toNumber(value) {
-      const num = Number(value);
+      const num = Number(typeof value === "number" ? value : normalizeNumberish(value));
       return Number.isFinite(num) ? num : 0;
     }
 
@@ -2545,7 +2563,7 @@
 
               <div class="field-group" style="margin-bottom:12px;">
                 <label for="weightInput">Weight</label>
-                <input class="input" id="weightInput" type="number" step="0.1" value="${escapeValue(entry.weight)}" data-field="weight">
+                <input class="input" id="weightInput" type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" autocomplete="off" enterkeyhint="done" value="${escapeValue(entry.weight)}" data-field="weight" data-live-field="weight">
               </div>
 
               <div class="field-group" style="margin-bottom:12px;">
@@ -3158,6 +3176,16 @@
       syncActualBodyPartLabel(entry);
     }
 
+    function handleInput(event) {
+      const target = event.target;
+      if (!target.dataset.liveField) {
+        return;
+      }
+
+      const entry = ensureEntry(state.selectedDate);
+      entry[target.dataset.liveField] = target.value;
+    }
+
     function handleChange(event) {
       const target = event.target;
       const entry = ensureEntry(state.selectedDate);
@@ -3428,6 +3456,7 @@
       }
     }
 
+    document.addEventListener("input", handleInput);
     document.addEventListener("change", handleChange);
     document.addEventListener("click", handleClick);
 
