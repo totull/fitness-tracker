@@ -1820,6 +1820,28 @@
       return "primary";
     }
 
+    function getDailyCheckInWorkoutSummary(dateKey) {
+      const entry = ensureEntry(dateKey);
+      const plan = getPlan(dateKey);
+      if (!entry.workoutDone) {
+        return {
+          label: "Planned workout",
+          value: plan.shortName
+        };
+      }
+
+      const actualWorkout = getActualBodyPart(entry, dateKey);
+      const cardioSummary = entry.cardioType && toNumber(entry.cardioDuration) > 0 ? entry.cardioType : "";
+      const combined = cardioSummary && !normalizeText(actualWorkout).includes(normalizeText(cardioSummary))
+        ? (actualWorkout === "Rest" ? cardioSummary : `${actualWorkout} + ${cardioSummary}`)
+        : actualWorkout;
+
+      return {
+        label: "Actual workout",
+        value: combined || plan.shortName
+      };
+    }
+
     function createDefaultEntry(dateKey) {
       const plan = getPlan(dateKey);
       const bodyParts = getDefaultBodyPartsForPlan(plan.name);
@@ -2812,6 +2834,7 @@
       const loggedMeals = Object.values(metrics.mealBreakdown).filter((meal) => meal.hasLog).length;
       const previousMealEntryKey = getPreviousMealEntryKey(state.selectedDate);
       const workoutExpanded = Boolean(state.ui?.workoutExpanded);
+      const workoutSummary = getDailyCheckInWorkoutSummary(state.selectedDate);
       const logView = document.getElementById("logView");
 
       logView.innerHTML = `
@@ -2836,8 +2859,8 @@
 
               <div class="hero-stat-grid">
                 <div class="hero-stat">
-                  <span class="muted">Planned workout</span>
-                  <strong>${plan.shortName}</strong>
+                  <span class="muted">${workoutSummary.label}</span>
+                  <strong>${workoutSummary.value}</strong>
                 </div>
                 <div class="hero-stat">
                   <span class="muted">Protein</span>
