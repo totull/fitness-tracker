@@ -44,6 +44,14 @@
       font: inherit;
     }
 
+    button:disabled,
+    input:disabled,
+    select:disabled,
+    textarea:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .app-shell {
       width: min(1100px, calc(100% - 24px));
       margin: 0 auto;
@@ -394,6 +402,168 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .daily-hero,
+    .summary-highlight,
+    .workout-shell {
+      display: grid;
+      gap: 14px;
+    }
+
+    .daily-hero-top,
+    .meal-header-inline,
+    .summary-highlight-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .daily-hero-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .weight-panel,
+    .hero-stat,
+    .summary-highlight .metric,
+    .workout-summary-card,
+    .macro-summary-row {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+    }
+
+    .weight-panel {
+      background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+    }
+
+    .weight-panel .input {
+      background: #ffffff;
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .weight-panel .muted {
+      font-size: 12px;
+    }
+
+    .hero-stat-grid,
+    .workout-summary-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .hero-stat strong,
+    .workout-summary-card strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 20px;
+    }
+
+    .summary-highlight {
+      padding: 18px;
+      background: linear-gradient(180deg, #f8fbff 0%, #f1f6ff 100%);
+    }
+
+    .summary-highlight.success {
+      background: linear-gradient(180deg, #ecfdf5 0%, #dcfce7 100%);
+      border-color: #bbf7d0;
+    }
+
+    .summary-highlight.warn {
+      background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+      border-color: #fed7aa;
+    }
+
+    .summary-highlight .metric {
+      box-shadow: none;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .feedback-callout {
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+    }
+
+    .feedback-callout.success {
+      background: var(--success-soft);
+      border-color: #bbf7d0;
+      color: var(--success);
+    }
+
+    .feedback-callout.warn {
+      background: var(--warn-soft);
+      border-color: #fed7aa;
+      color: var(--warn);
+    }
+
+    .feedback-callout.danger {
+      background: var(--danger-soft);
+      border-color: #fca5a5;
+      color: var(--danger);
+    }
+
+    .quick-action-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .meal-card .card-header {
+      margin-bottom: 10px;
+    }
+
+    .meal-tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .macro-summary-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+    }
+
+    .macro-summary-row strong {
+      display: block;
+      margin-top: 4px;
+    }
+
+    .summary-highlight .metric.success {
+      background: rgba(220, 252, 231, 0.85);
+      border-color: #bbf7d0;
+    }
+
+    .summary-highlight .metric.warn {
+      background: rgba(255, 237, 213, 0.9);
+      border-color: #fed7aa;
+    }
+
+    .summary-highlight .metric.danger {
+      background: rgba(254, 226, 226, 0.9);
+      border-color: #fca5a5;
+    }
+
+    .section-toggle {
+      width: 100%;
+      text-align: center;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
     .trend-chart {
       display: grid;
       gap: 10px;
@@ -510,11 +680,17 @@
         grid-template-columns: 1.2fr 0.8fr;
         gap: 14px;
       }
+
+      .daily-hero-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+        align-items: stretch;
+      }
     }
 
     @media (max-width: 680px) {
       .app-shell {
         width: min(100% - 16px, 1100px);
+        padding-bottom: 92px;
       }
 
       .title-block h1 {
@@ -522,19 +698,41 @@
       }
 
       .tab-bar {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(4, 1fr);
+        position: fixed;
+        left: 50%;
+        bottom: 12px;
+        top: auto;
+        transform: translateX(-50%);
+        width: min(calc(100% - 16px), 1100px);
+        padding: 10px;
+        margin-bottom: 0;
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
       }
 
       .two-col,
       .three-col,
       .four-col,
       .metric-grid,
-      .set-grid {
+      .set-grid,
+      .hero-stat-grid,
+      .workout-summary-grid,
+      .daily-hero-grid {
         grid-template-columns: 1fr;
       }
 
       .set-row {
         align-items: stretch;
+        flex-direction: column;
+      }
+
+      .daily-hero-top,
+      .summary-highlight-top,
+      .meal-header-inline {
         flex-direction: column;
       }
     }
@@ -860,6 +1058,9 @@
         anonKey: "",
         email: ""
       },
+      ui: {
+        workoutExpanded: false
+      },
       entries: {}
     };
 
@@ -1149,6 +1350,10 @@
           remote: {
             ...cloneData(DEFAULT_STATE.remote),
             ...(saved.remote || {})
+          },
+          ui: {
+            ...cloneData(DEFAULT_STATE.ui),
+            ...(saved.ui || {})
           },
           entries: saved.entries || {}
         });
@@ -1562,6 +1767,57 @@
       }
 
       return String(state.entries[matchingDate].weight);
+    }
+
+    function hasMealContent(mealLog) {
+      return Boolean(
+        mealLog &&
+        (
+          String(mealLog.details || "").trim() ||
+          mealLog.caloriesOverride !== "" ||
+          mealLog.macroOverride !== ""
+        )
+      );
+    }
+
+    function getPreviousEntryKey(beforeDateKey, predicate = () => true) {
+      return getOrderedEntryKeys()
+        .filter((dateKey) => dateKey < beforeDateKey)
+        .reverse()
+        .find((dateKey) => predicate(ensureEntry(dateKey))) || "";
+    }
+
+    function getPreviousMealEntryKey(beforeDateKey) {
+      return getPreviousEntryKey(beforeDateKey, (entry) => Object.values(entry.meals || {}).some(hasMealContent));
+    }
+
+    function fillPlannedMeals(entry, dateKey) {
+      const plannedMeals = getMeals(dateKey);
+      ["breakfast", "lunch", "dinner"].forEach((mealKey) => {
+        if (!plannedMeals[mealKey]) {
+          return;
+        }
+        entry.meals[mealKey].details = plannedMeals[mealKey].name;
+      });
+    }
+
+    function copyPreviousMeals(entry, dateKey) {
+      const previousDateKey = getPreviousMealEntryKey(dateKey);
+      if (!previousDateKey) {
+        return false;
+      }
+      entry.meals = cloneData(ensureEntry(previousDateKey).meals);
+      return true;
+    }
+
+    function energyBalanceTone(value) {
+      if (value > 0) {
+        return "success";
+      }
+      if (value < 0) {
+        return "warn";
+      }
+      return "primary";
     }
 
     function createDefaultEntry(dateKey) {
@@ -2305,13 +2561,16 @@
     function renderMealEditor(mealKey, plannedMeal, mealLog, mealMetric) {
       const hasPlannedMeal = Boolean(plannedMeal);
       return `
-        <div class="exercise-card">
-          <div class="card-header">
+        <div class="exercise-card meal-card">
+          <div class="card-header meal-header-inline">
             <div>
               <h3>${mealDisplayName(mealKey)}</h3>
               <p class="muted">${hasPlannedMeal ? `Planned: ${plannedMeal.name}` : "Optional extra snacks, desserts, drinks, or meals"}</p>
             </div>
-            <span class="tag ${mealMetric.hasLog ? "success" : "warn"}">${mealMetric.calories} kcal</span>
+            <div class="meal-tag-row">
+              <span class="tag ${mealMetric.hasLog ? "success" : "warn"}">${mealMetric.calories} kcal</span>
+              <span class="tag primary">${formatMacroLine(mealMetric)}</span>
+            </div>
           </div>
 
           <div class="field-group" style="margin-bottom:10px;">
@@ -2344,7 +2603,7 @@
                 data-meal-key="${mealKey}"
                 data-meal-field="macroOverride"
               >
-              <p class="muted">Use <code>30P / 40C / 12F</code> and clear the field to return to auto macros.</p>
+              <p class="muted">Use <code>30P / 40C / 12F</code> or <code>30 / 40 / 12</code>. Clear it to return to auto macros.</p>
             </div>
           </div>
 
@@ -2547,23 +2806,105 @@
       const meals = getMeals(state.selectedDate);
       const metrics = calculateMetrics(state.selectedDate);
       const energyBalance = describeEnergyBalance(metrics.deficit);
+      const energyTone = energyBalanceTone(metrics.deficit);
+      const feedback = buildDailyFeedback(state.selectedDate);
+      const primaryFeedback = feedback[0] || null;
+      const loggedMeals = Object.values(metrics.mealBreakdown).filter((meal) => meal.hasLog).length;
+      const previousMealEntryKey = getPreviousMealEntryKey(state.selectedDate);
+      const workoutExpanded = Boolean(state.ui?.workoutExpanded);
       const logView = document.getElementById("logView");
 
       logView.innerHTML = `
         <div class="grid">
+          <div class="card daily-hero">
+            <div class="daily-hero-top">
+              <div>
+                <h2>Daily check-in</h2>
+                <p class="muted">Start with the few numbers that matter most, then log the rest only if needed.</p>
+              </div>
+              <span class="tag primary">${formatHumanDate(state.selectedDate)}</span>
+            </div>
+
+            <div class="daily-hero-grid">
+              <div class="weight-panel">
+                <div class="field-group">
+                  <label for="weightInput">Weight</label>
+                  <input class="input" id="weightInput" type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" autocomplete="off" enterkeyhint="done" value="${escapeValue(entry.weight)}" data-field="weight" data-live-field="weight">
+                  <p class="muted">Editable here at the top so daily weigh-ins take one tap.</p>
+                </div>
+              </div>
+
+              <div class="hero-stat-grid">
+                <div class="hero-stat">
+                  <span class="muted">Planned workout</span>
+                  <strong>${plan.shortName}</strong>
+                </div>
+                <div class="hero-stat">
+                  <span class="muted">Protein</span>
+                  <strong>${metrics.protein} / ${state.profile.proteinTarget}g</strong>
+                </div>
+                <div class="hero-stat">
+                  <span class="muted">Steps</span>
+                  <strong>${toNumber(entry.steps) ? `${roundOne(toNumber(entry.steps) / 1000)}k` : "0"}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card summary-highlight ${energyTone}">
+            <div class="summary-highlight-top">
+              <div>
+                <h2>Today at a glance</h2>
+                <p class="muted">Keep the calorie bottom line visible before scrolling into the detailed log.</p>
+              </div>
+              <span class="tag ${energyTone === "success" ? "success" : energyTone === "warn" ? "warn" : "primary"}">${energyBalance.label}</span>
+            </div>
+
+            <div class="metric-grid">
+              <div class="metric">
+                <span class="muted">Meal intake</span>
+                <strong>${metrics.foodCalories} kcal</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Total burn</span>
+                <strong>${metrics.caloriesBurnt} kcal</strong>
+              </div>
+              <div class="metric ${energyTone}">
+                <span class="muted">${energyBalance.label}</span>
+                <strong>${energyBalance.valueText}</strong>
+              </div>
+            </div>
+
+            ${primaryFeedback ? `
+              <div class="feedback-callout ${primaryFeedback.tone}">
+                <strong>${primaryFeedback.title}</strong>
+                <p>${primaryFeedback.body}</p>
+              </div>
+            ` : ""}
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Quick actions</h3>
+                <p class="muted">Speed up the things you are likely to do every day on phone.</p>
+              </div>
+            </div>
+            <div class="quick-action-grid">
+              <button class="mini-button" type="button" data-action="fill-planned-meals">Use planned meals</button>
+              <button class="mini-button" type="button" data-action="copy-last-meals" ${previousMealEntryKey ? "" : "disabled"}>Copy last meals${previousMealEntryKey ? ` (${formatShortDate(previousMealEntryKey)})` : ""}</button>
+              <button class="mini-button" type="button" data-action="toggle-workout">${workoutExpanded ? "Hide workout details" : "Open workout logger"}</button>
+            </div>
+          </div>
+
           <div class="split-grid">
             <div class="card">
               <div class="card-header">
                 <div>
-                  <h2>Daily nutrition log</h2>
-                  <p class="muted">Add meal details, or edit the single macros line directly when you already know the meal macros.</p>
+                  <h2>Meals</h2>
+                  <p class="muted">Keep each meal compact, but let calories and the single macros line stay editable.</p>
                 </div>
-                <span class="tag primary">${formatHumanDate(state.selectedDate)}</span>
-              </div>
-
-              <div class="field-group" style="margin-bottom:12px;">
-                <label for="weightInput">Weight</label>
-                <input class="input" id="weightInput" type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" autocomplete="off" enterkeyhint="done" value="${escapeValue(entry.weight)}" data-field="weight" data-live-field="weight">
+                <span class="tag primary">${loggedMeals} logged</span>
               </div>
 
               <div class="field-group" style="margin-bottom:12px;">
@@ -2576,6 +2917,17 @@
                   `).join("")}
                 </div>
                 <input class="input" type="number" step="0.1" value="${escapeValue(entry.waterLiters)}" data-field="waterLiters">
+              </div>
+
+              <div class="macro-summary-row">
+                <div>
+                  <span class="muted">Daily macros</span>
+                  <strong>${formatMacroLine(metrics)}</strong>
+                </div>
+                <div style="text-align:right;">
+                  <span class="muted">Water</span>
+                  <strong>${metrics.waterLiters} / ${state.profile.waterTargetLiters} L</strong>
+                </div>
               </div>
 
               <div class="meal-list">
@@ -2592,7 +2944,7 @@
               <div class="card-header">
                 <div>
                   <h2>Activity and cardio</h2>
-                  <p class="muted">Log steps, workout completion, cardio, and the day's calorie balance.</p>
+                  <p class="muted">Steps, workout completion, and cardio stay together because they all feed total burn.</p>
                 </div>
                 <span class="tag success">${metrics.actualBodyPart}</span>
               </div>
@@ -2657,170 +3009,200 @@
 
                 <div class="metric-grid">
                   <div class="metric">
-                    <span class="muted">Meal intake</span>
-                    <strong>${metrics.foodCalories} kcal</strong>
-                  </div>
-                  <div class="metric">
-                    <span class="muted">Strength burn</span>
-                    <strong>${metrics.workoutCalories} kcal</strong>
+                    <span class="muted">Workout</span>
+                    <strong>${entry.workoutDone ? "Done" : "Not yet"}</strong>
                   </div>
                   <div class="metric">
                     <span class="muted">Step burn</span>
                     <strong>${metrics.stepCalories} kcal</strong>
                   </div>
                   <div class="metric">
-                    <span class="muted">Total burn</span>
-                    <strong>${metrics.caloriesBurnt} kcal</strong>
+                    <span class="muted">Cardio burn</span>
+                    <strong>${metrics.cardioCalories} kcal</strong>
                   </div>
                   <div class="metric">
-                    <span class="muted">${energyBalance.label}</span>
-                    <strong>${energyBalance.valueText}</strong>
+                    <span class="muted">Strength burn</span>
+                    <strong>${metrics.workoutCalories} kcal</strong>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="card">
+          <div class="card workout-shell">
               <div class="card-header">
                 <div>
                   <h2>Workout logger</h2>
-                  <p class="muted">Change the body part, load a matching template, edit exercises, and adjust the estimated strength burn if needed.</p>
+                  <p class="muted">Collapsed by default so the daily log stays shorter, but the key workout numbers are still visible.</p>
                 </div>
                 <span class="tag primary">Planned: ${plan.shortName}</span>
               </div>
 
-            <div class="grid" style="margin-bottom:12px;">
-              <div class="field-group">
-                <label>Body parts exercised</label>
-                <div class="input">${metrics.actualBodyPart}</div>
+            <div class="workout-summary-grid">
+              <div class="workout-summary-card">
+                <span class="muted">Strength burn</span>
+                <strong>${metrics.workoutCalories} kcal</strong>
               </div>
-
-              <div class="chip-wrap">
-                ${BODY_PART_OPTIONS.map((part) => `
-                  <button
-                    class="chip ${entry.actualBodyParts.includes(part) ? "active" : ""}"
-                    type="button"
-                    data-bodypart-preset="${part}"
-                  >
-                    ${part}
-                  </button>
-                `).join("")}
+              <div class="workout-summary-card">
+                <span class="muted">Cardio + steps</span>
+                <strong>${metrics.cardioCalories + metrics.stepCalories} kcal</strong>
               </div>
-
-              <div class="inline-actions">
-                <button class="mini-button" type="button" data-action="apply-bodypart-template">Load matching template</button>
-                <button class="mini-button" type="button" data-action="add-exercise">Add exercise</button>
-                <button class="mini-button" type="button" data-action="reset-plan">Reset to planned workout</button>
-              </div>
-
-              <div class="field-group">
-                <label for="strengthCaloriesOverride">Estimated strength burn</label>
-                <input
-                  class="input"
-                  id="strengthCaloriesOverride"
-                  type="number"
-                  value="${escapeValue(entry.strengthCaloriesOverride || metrics.estimatedWorkoutCalories)}"
-                  data-field="strengthCaloriesOverride"
-                >
-                <p class="muted">Auto-computed conservatively from your logged exercise type, weight, reps, and set timing. Edit it if needed, or clear it to use the live estimate of ${metrics.estimatedWorkoutCalories} kcal.</p>
-              </div>
-
-              <div class="metric-grid">
-                <div class="metric">
-                  <span class="muted">Total burn today</span>
-                  <strong>${metrics.caloriesBurnt} kcal</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Completed sets</span>
-                  <strong>${metrics.completedSets}</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Total reps</span>
-                  <strong>${metrics.totalReps}</strong>
-                </div>
+              <div class="workout-summary-card">
+                <span class="muted">Workout progress</span>
+                <strong>${metrics.completedSets} sets</strong>
               </div>
             </div>
 
-            <div class="exercise-list">
-              ${entry.exerciseLogs.map((exercise, exerciseIndex) => `
-                <div class="exercise-card">
-                  <div class="exercise-header">
-                    <div class="exercise-title">
-                      <div class="field-group">
-                        <label>Exercise name</label>
+            <div class="macro-summary-row">
+              <div>
+                <span class="muted">Body parts</span>
+                <strong>${metrics.actualBodyPart}</strong>
+              </div>
+              <div style="text-align:right;">
+                <span class="muted">Exercises</span>
+                <strong>${entry.exerciseLogs.length}</strong>
+              </div>
+            </div>
+
+            <button class="ghost-button section-toggle" type="button" data-action="toggle-workout">
+              ${workoutExpanded ? "Hide workout details" : "Show workout details"}
+            </button>
+
+            ${workoutExpanded ? `
+              <div class="section-divider"></div>
+
+              <div class="grid" style="margin-bottom:12px;">
+                <div class="field-group">
+                  <label>Body parts exercised</label>
+                  <div class="input">${metrics.actualBodyPart}</div>
+                </div>
+
+                <div class="chip-wrap">
+                  ${BODY_PART_OPTIONS.map((part) => `
+                    <button
+                      class="chip ${entry.actualBodyParts.includes(part) ? "active" : ""}"
+                      type="button"
+                      data-bodypart-preset="${part}"
+                    >
+                      ${part}
+                    </button>
+                  `).join("")}
+                </div>
+
+                <div class="inline-actions">
+                  <button class="mini-button" type="button" data-action="apply-bodypart-template">Load matching template</button>
+                  <button class="mini-button" type="button" data-action="add-exercise">Add exercise</button>
+                  <button class="mini-button" type="button" data-action="reset-plan">Reset to planned workout</button>
+                </div>
+
+                <div class="field-group">
+                  <label for="strengthCaloriesOverride">Estimated strength burn</label>
+                  <input
+                    class="input"
+                    id="strengthCaloriesOverride"
+                    type="number"
+                    value="${escapeValue(entry.strengthCaloriesOverride || metrics.estimatedWorkoutCalories)}"
+                    data-field="strengthCaloriesOverride"
+                  >
+                  <p class="muted">Auto-computed conservatively from your logged exercise type, weight, reps, and set timing. Edit it if needed, or clear it to use the live estimate of ${metrics.estimatedWorkoutCalories} kcal.</p>
+                </div>
+
+                <div class="metric-grid">
+                  <div class="metric">
+                    <span class="muted">Total burn today</span>
+                    <strong>${metrics.caloriesBurnt} kcal</strong>
+                  </div>
+                  <div class="metric">
+                    <span class="muted">Completed sets</span>
+                    <strong>${metrics.completedSets}</strong>
+                  </div>
+                  <div class="metric">
+                    <span class="muted">Total reps</span>
+                    <strong>${metrics.totalReps}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="exercise-list">
+                ${entry.exerciseLogs.map((exercise, exerciseIndex) => `
+                  <div class="exercise-card">
+                    <div class="exercise-header">
+                      <div class="exercise-title">
+                        <div class="field-group">
+                          <label>Exercise name</label>
+                          <input
+                            class="input"
+                            type="text"
+                            value="${escapeValue(exercise.name)}"
+                            data-exercise-index="${exerciseIndex}"
+                            data-exercise-field="name"
+                          >
+                        </div>
+                      </div>
+                      <div class="field-group" style="width:96px;">
+                        <label>Sets</label>
                         <input
                           class="input"
-                          type="text"
-                          value="${escapeValue(exercise.name)}"
+                          type="number"
+                          min="1"
+                          value="${exercise.sets.length}"
                           data-exercise-index="${exerciseIndex}"
-                          data-exercise-field="name"
+                          data-exercise-field="setCount"
                         >
                       </div>
+                      <button class="ghost-button" type="button" data-action="remove-exercise" data-exercise-index="${exerciseIndex}">
+                        Remove
+                      </button>
                     </div>
-                    <div class="field-group" style="width:96px;">
-                      <label>Sets</label>
-                      <input
-                        class="input"
-                        type="number"
-                        min="1"
-                        value="${exercise.sets.length}"
-                        data-exercise-index="${exerciseIndex}"
-                        data-exercise-field="setCount"
-                      >
-                    </div>
-                    <button class="ghost-button" type="button" data-action="remove-exercise" data-exercise-index="${exerciseIndex}">
-                      Remove
-                    </button>
-                  </div>
 
-                  <div class="set-list">
-                    ${exercise.sets.map((set, setIndex) => `
-                      <div class="set-row">
-                        <div class="set-grid">
-                          <div class="field-group">
-                            <label>Set</label>
-                            <div class="input">${setIndex + 1}</div>
+                    <div class="set-list">
+                      ${exercise.sets.map((set, setIndex) => `
+                        <div class="set-row">
+                          <div class="set-grid">
+                            <div class="field-group">
+                              <label>Set</label>
+                              <div class="input">${setIndex + 1}</div>
+                            </div>
+                            <div class="field-group">
+                              <label>Weight</label>
+                              <input
+                                class="input"
+                                type="number"
+                                step="0.5"
+                                value="${escapeValue(set.weight)}"
+                                data-exercise-index="${exerciseIndex}"
+                                data-set-index="${setIndex}"
+                                data-set-field="weight"
+                              >
+                            </div>
+                            <div class="field-group">
+                              <label>Reps / sec</label>
+                              <input
+                                class="input"
+                                type="number"
+                                value="${escapeValue(set.reps)}"
+                                data-exercise-index="${exerciseIndex}"
+                                data-set-index="${setIndex}"
+                                data-set-field="reps"
+                              >
+                            </div>
                           </div>
-                          <div class="field-group">
-                            <label>Weight</label>
-                            <input
-                              class="input"
-                              type="number"
-                              step="0.5"
-                              value="${escapeValue(set.weight)}"
-                              data-exercise-index="${exerciseIndex}"
-                              data-set-index="${setIndex}"
-                              data-set-field="weight"
-                            >
-                          </div>
-                          <div class="field-group">
-                            <label>Reps / sec</label>
-                            <input
-                              class="input"
-                              type="number"
-                              value="${escapeValue(set.reps)}"
-                              data-exercise-index="${exerciseIndex}"
-                              data-set-index="${setIndex}"
-                              data-set-field="reps"
-                            >
-                          </div>
+                          <button class="ghost-button" type="button" data-action="remove-set" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
+                            Remove set
+                          </button>
                         </div>
-                        <button class="ghost-button" type="button" data-action="remove-set" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
-                          Remove set
-                        </button>
-                      </div>
-                    `).join("")}
-                  </div>
+                      `).join("")}
+                    </div>
 
-                  <div class="inline-actions" style="margin-top:12px;">
-                    <button class="mini-button" type="button" data-action="add-set" data-exercise-index="${exerciseIndex}">
-                      Add set
-                    </button>
+                    <div class="inline-actions" style="margin-top:12px;">
+                      <button class="mini-button" type="button" data-action="add-set" data-exercise-index="${exerciseIndex}">
+                        Add set
+                      </button>
+                    </div>
                   </div>
-                </div>
-              `).join("")}
-            </div>
+                `).join("")}
+              </div>
+            ` : ""}
 
             <button class="action-button" type="button" data-action="save-entry">Save today's log</button>
           </div>
@@ -3366,6 +3748,28 @@
       if (button.dataset.action === "use-planned-meal") {
         const mealKey = button.dataset.mealKey;
         entry.meals[mealKey].details = getMeals(state.selectedDate)[mealKey].name;
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "fill-planned-meals") {
+        fillPlannedMeals(entry, state.selectedDate);
+        saveState();
+        render();
+        return;
+      }
+
+      if (button.dataset.action === "copy-last-meals") {
+        if (copyPreviousMeals(entry, state.selectedDate)) {
+          saveState();
+          render();
+        }
+        return;
+      }
+
+      if (button.dataset.action === "toggle-workout") {
+        state.ui.workoutExpanded = !state.ui.workoutExpanded;
         saveState();
         render();
         return;
