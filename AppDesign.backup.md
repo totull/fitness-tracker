@@ -1,15 +1,11 @@
-Build a simple mobile-first web app (HTML, CSS, JavaScript) for a personalized 7-month fat-loss tracker.
+Build a simple mobile-first web app (HTML, CSS, JavaScript) for a 90-day fitness tracker.
 
 User profile:
-- 49-year-old vegetarian male, desk job, ~5 ft 9 in
-- Fat loss goal (86 → 75 kg) over ~7 months, before his 50th birthday
-- Goal window: 2026-08-14 → 2027-03-14 (212 days)
-- Target pace: 0.3–0.5 kg/week (rolling 7-day average, not single weigh-ins)
-- Daily calorie target: ~2100 kcal
+- 49-year-old male
+- Fat loss goal (88 → 75 kg)
+- Daily calorie target: 1750 kcal
 - Protein target: 130g
-- Step target: ~9,000/day; sleep target: 7h; water target: 3 L
-- Health notes: statin (atorvastatin) for cholesterol, old ACL injury / knee stiffness (low-impact, ACL-safe programming)
-- Workout ~5x/week: 3 full-body strength + 2 Zone 2 cardio + mobility (auto-rotating 7-day schedule)
+- Workout 5x/week (structured split)
 
 App Requirements:
 
@@ -124,42 +120,3 @@ Keep it lightweight, fast, and usable on phone browser.
 
 6. **Smart Feedback Panel**
    - Surfaces alerts and simple next actions based on the day's inputs.
-
-## Personalized 7-Month Goal Plan
-
-This build tailors the tracker to a single fat-loss journey: **86 kg → 75 kg between 2026-08-14 and 2027-03-14 (212 days)** at a sustainable **0.3–0.5 kg/week**. All progress decisions use a **rolling 7-day weight average**, never a single morning weigh-in.
-
-### Training (ACL-safe, low-impact)
-Auto-rotating 7-day cycle:
-1. Full Body Strength A (leg press, flat DB press, seated row, RDL, plank)
-2. Zone 2 Cardio + Mobility (cycling / swimming / rowing / incline walk 40 min + mobility)
-3. Full Body Strength B (step-up to low box, lat pulldown, shoulder press, hip thrust, dead bug)
-4. Zone 2 Cardio + Mobility
-5. Full Body Strength C (goblet squat, incline chest press, single-arm row, hamstring curl, farmer carry)
-6. Active Recovery (mobility, easy cycling, band work)
-7. Rest Day (light walk)
-
-Running and heavy loaded knee work are gated by the logged **knee status**; when stiff/painful the app steers toward cycling, swimming, rowing, or walking.
-
-### Nutrition
-- ~2100 kcal/day, 130g protein, vegetarian rotation (eggs + dairy + tofu/paneer/soya/legumes), higher-protein meals than the original cut.
-- Hydration 3 L, sleep 7h, alcohol kept to ≤2 drinks/week during the main fat-loss phase.
-
-### Recovery & sustainability tracking
-Daily check-in adds: **sleep hours, alcohol drinks, hunger (1–5), knee status, and weekly waist**. Sleep feeds the adherence score; hunger, alcohol, and knee status drive smart feedback so the plan stays sustainable.
-
-### Monthly checkpoints
-Seven checkpoints at days **30, 61, 92, 122, 153, 181, 212**. Each has a straight-line target weight (final = 75 kg on 2027-03-14). A checkpoint is "on track" when the rolling average is within ~0.75 kg of target, otherwise a strategy review is flagged.
-
-### Staged intervention triggers
-The goal-journey engine escalates guidance based on elapsed time, rolling loss rate, variance vs. expected, and 14-day adherence:
-1. **Baseline** — log ≥3 morning weights/week before changing anything.
-2. **Too fast** (>0.8 kg/wk) — add 100–200 kcal rather than deepen the deficit.
-3. **Improve consistency** (adherence <70%) — hold calories, tighten logging/protein/steps/sleep/strength.
-4. **Professional intervention** (behind plan after ~12 weeks despite ≥75% adherence) — review calorie accuracy, sleep-apnoea risk, and anti-obesity medication (e.g., tirzepatide) with a physician/obesity specialist.
-5. **Strategy adjustment** (stalled or drifting above expected) — trim 150–200 kcal *or* add two short low-impact cardio sessions, not both.
-6. **Stay the course** — trend near the 0.3–0.5 kg/week band; avoid unnecessary changes.
-
-Medication such as Mounjaro/tirzepatide is intentionally positioned as a **later, physician-reviewed option** if lifestyle execution is genuinely on track but progress stalls — not a first step.
-
-> Guidance in this app is informational and not a substitute for personalized medical advice. Medication decisions should be made with a qualified clinician.

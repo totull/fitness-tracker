@@ -783,63 +783,63 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const STORAGE_KEY = "fitness-tracker-local-v4";
+    const STORAGE_KEY = "fitness-tracker-local-v3";
     const DAY_MS = 24 * 60 * 60 * 1000;
-    const CHECKPOINT_DAYS = [30, 61, 92, 122, 153, 181, 212];
 
     const WEEKLY_PLAN = [
       {
-        name: "Full Body Strength A",
-        shortName: "Strength A",
-        estimatedBurn: 260,
+        name: "Chest + Triceps",
+        shortName: "Chest",
+        estimatedBurn: 220,
         exercises: [
-          { name: "Leg press (controlled range)", sets: 3, reps: 10 },
           { name: "Flat dumbbell press", sets: 3, reps: 10 },
-          { name: "Seated row", sets: 3, reps: 10 },
+          { name: "Incline chest press", sets: 3, reps: 10 },
+          { name: "Cable fly", sets: 3, reps: 12 },
+          { name: "Rope pushdown", sets: 3, reps: 12 }
+        ]
+      },
+      {
+        name: "Back + Biceps",
+        shortName: "Back",
+        estimatedBurn: 230,
+        exercises: [
+          { name: "Lat pulldown", sets: 3, reps: 10 },
+          { name: "Seated row", sets: 3, reps: 12 },
+          { name: "Single-arm dumbbell row", sets: 3, reps: 10 },
+          { name: "Dumbbell curls", sets: 3, reps: 12 }
+        ]
+      },
+      {
+        name: "Legs (ACL safe)",
+        shortName: "Legs",
+        estimatedBurn: 240,
+        exercises: [
+          { name: "Leg press (controlled range)", sets: 3, reps: 12 },
           { name: "Romanian deadlift", sets: 3, reps: 10 },
+          { name: "Step-up to low box", sets: 3, reps: 10 },
+          { name: "Hamstring curl", sets: 3, reps: 12 }
+        ]
+      },
+      {
+        name: "Shoulders + Core",
+        shortName: "Shoulders",
+        estimatedBurn: 210,
+        exercises: [
+          { name: "Seated shoulder press", sets: 3, reps: 10 },
+          { name: "Lateral raise", sets: 3, reps: 12 },
+          { name: "Face pull", sets: 3, reps: 12 },
           { name: "Plank", sets: 3, reps: 45 }
         ]
       },
       {
-        name: "Zone 2 Cardio + Mobility",
-        shortName: "Zone 2",
+        name: "Swimming + Full Body",
+        shortName: "Full Body",
         estimatedBurn: 320,
         exercises: [
-          { name: "Cycling, swimming, rowing, or incline walk", sets: 1, reps: 40 },
-          { name: "Mobility flow", sets: 1, reps: 15 }
-        ]
-      },
-      {
-        name: "Full Body Strength B",
-        shortName: "Strength B",
-        estimatedBurn: 270,
-        exercises: [
-          { name: "Step-up to low box", sets: 3, reps: 10 },
-          { name: "Lat pulldown", sets: 3, reps: 10 },
-          { name: "Seated shoulder press", sets: 3, reps: 10 },
-          { name: "Hip thrust", sets: 3, reps: 12 },
-          { name: "Dead bug", sets: 3, reps: 10 }
-        ]
-      },
-      {
-        name: "Zone 2 Cardio + Mobility",
-        shortName: "Zone 2",
-        estimatedBurn: 320,
-        exercises: [
-          { name: "Cycling, swimming, rowing, or incline walk", sets: 1, reps: 40 },
-          { name: "Mobility flow", sets: 1, reps: 15 }
-        ]
-      },
-      {
-        name: "Full Body Strength C",
-        shortName: "Strength C",
-        estimatedBurn: 270,
-        exercises: [
+          { name: "Swimming laps", sets: 1, reps: 30 },
           { name: "Goblet squat", sets: 3, reps: 12 },
-          { name: "Incline chest press", sets: 3, reps: 10 },
-          { name: "Single-arm dumbbell row", sets: 3, reps: 10 },
-          { name: "Hamstring curl", sets: 3, reps: 12 },
-          { name: "Farmer carry", sets: 3, reps: 40 }
+          { name: "Push-up", sets: 3, reps: 10 },
+          { name: "Cable row", sets: 3, reps: 12 }
         ]
       },
       {
@@ -864,39 +864,39 @@
 
     const MEAL_ROTATION = [
       {
-        breakfast: { name: "Whey + creatine + skim milk + fruit", calories: 340, protein: 34 },
-        lunch: { name: "Salad + 2 eggs + Greek yogurt + 2 rotis", calories: 610, protein: 39 },
-        dinner: { name: "Tofu curry + dal + 2 rotis + curd", calories: 1050, protein: 64 }
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + Greek yogurt + 1 roti", calories: 520, protein: 36 },
+        dinner: { name: "Tofu curry + dal + 2 rotis + curd", calories: 980, protein: 63 }
       },
       {
-        breakfast: { name: "Whey + creatine + skim milk + fruit", calories: 340, protein: 34 },
-        lunch: { name: "Salad + 2 eggs + sprouts + curd + 1 roti", calories: 600, protein: 40 },
-        dinner: { name: "Soya chunk masala + rice + raita", calories: 1060, protein: 70 }
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + sprouts + curd", calories: 500, protein: 38 },
+        dinner: { name: "Soya chunk masala + rice + raita", calories: 1010, protein: 70 }
       },
       {
-        breakfast: { name: "Whey + creatine + skim milk + fruit", calories: 340, protein: 34 },
-        lunch: { name: "Salad + 2 eggs + tofu + 1 roti", calories: 610, protein: 42 },
-        dinner: { name: "Paneer bhurji + dal + 2 rotis + vegetables", calories: 1050, protein: 62 }
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + tofu + lemon dressing", calories: 510, protein: 40 },
+        dinner: { name: "Paneer bhurji + dal + 2 rotis", calories: 970, protein: 60 }
       },
       {
-        breakfast: { name: "Whey + creatine + skim milk + fruit", calories: 340, protein: 34 },
-        lunch: { name: "Salad + 2 eggs + chana + curd", calories: 610, protein: 39 },
-        dinner: { name: "Rajma rice + tofu stir-fry + curd", calories: 1050, protein: 63 }
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + chana + curd", calories: 530, protein: 37 },
+        dinner: { name: "Rajma rice + tofu stir-fry + curd", calories: 955, protein: 61 }
       },
       {
-        breakfast: { name: "Whey + creatine + skim milk + fruit", calories: 340, protein: 34 },
-        lunch: { name: "Salad + 2 eggs + 2 rotis + hung curd", calories: 610, protein: 39 },
-        dinner: { name: "Chole + 2 rotis + cucumber raita + tofu", calories: 1050, protein: 65 }
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + 1 roti + hung curd", calories: 515, protein: 36 },
+        dinner: { name: "Chole + 2 rotis + cucumber raita + tofu", calories: 975, protein: 63 }
       },
       {
-        breakfast: { name: "Whey + creatine + skim milk + fruit", calories: 340, protein: 34 },
-        lunch: { name: "Salad + 2 eggs + sprouts + tofu + 1 roti", calories: 620, protein: 44 },
-        dinner: { name: "Moong chilla + paneer stuffing + sambar", calories: 1040, protein: 63 }
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + sprouts + tofu", calories: 520, protein: 41 },
+        dinner: { name: "Moong chilla + paneer stuffing + sambar", calories: 960, protein: 62 }
       },
       {
-        breakfast: { name: "Whey + creatine + skim milk + fruit", calories: 340, protein: 34 },
-        lunch: { name: "Salad + 2 eggs + curd + fruit + 1 roti", calories: 600, protein: 37 },
-        dinner: { name: "Palak tofu + dal + 2 rotis + curd", calories: 1060, protein: 67 }
+        breakfast: { name: "Whey + creatine + skim milk", calories: 250, protein: 33 },
+        lunch: { name: "Salad + 2 eggs + curd + fruit", calories: 495, protein: 34 },
+        dinner: { name: "Palak tofu + dal + 2 rotis + curd", calories: 985, protein: 66 }
       }
     ];
 
@@ -904,7 +904,6 @@
       Cycling: 8,
       Rowing: 9,
       Swimming: 10,
-      Running: 11,
       Walking: 4
     };
 
@@ -1040,25 +1039,19 @@
     const TRACKER_START_DATE = "2026-03-24";
 
     const DEFAULT_STATE = {
-      version: 5,
+      version: 4,
       startDate: TRACKER_START_DATE,
       selectedDate: TRACKER_START_DATE,
       currentView: "dashboard",
       lastSavedAt: null,
       profile: {
-        currentWeight: 86,
+        currentWeight: 88,
         goalWeight: 75,
-        calorieTarget: 2100,
+        calorieTarget: 1750,
         proteinTarget: 130,
-        stepTarget: 9000,
+        stepTarget: 10000,
         waterTargetLiters: 3,
-        maintenanceCalories: 2200,
-        sleepTargetHours: 7,
-        goalStartDate: "2026-08-14",
-        goalTargetDate: "2027-03-14",
-        goalDurationDays: 212,
-        weeklyLossMin: 0.3,
-        weeklyLossMax: 0.5
+        maintenanceCalories: 2450
       },
       remote: {
         url: "",
@@ -1347,21 +1340,13 @@
           localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedDefaultState));
           return normalizedDefaultState;
         }
-        const migratedProfile = {
-          ...cloneData(DEFAULT_STATE.profile),
-          ...(saved.profile || {})
-        };
-        if ((saved.version || 0) < 5) {
-          if (migratedProfile.currentWeight === 88) migratedProfile.currentWeight = 86;
-          if (migratedProfile.calorieTarget === 1750) migratedProfile.calorieTarget = 2100;
-          if (migratedProfile.stepTarget === 10000) migratedProfile.stepTarget = 9000;
-          if (migratedProfile.maintenanceCalories === 2450) migratedProfile.maintenanceCalories = 2200;
-        }
         const normalizedState = applyBaselineRules({
           ...cloneData(DEFAULT_STATE),
           ...saved,
-          version: DEFAULT_STATE.version,
-          profile: migratedProfile,
+          profile: {
+            ...cloneData(DEFAULT_STATE.profile),
+            ...(saved.profile || {})
+          },
           remote: {
             ...cloneData(DEFAULT_STATE.remote),
             ...(saved.remote || {})
@@ -1475,18 +1460,10 @@
 
     function applyRemotePayload(payload) {
       state.startDate = TRACKER_START_DATE;
-      const incomingProfile = {
+      state.profile = {
         ...state.profile,
         ...(payload.profile || {})
       };
-      if ((payload.version || 0) < 5) {
-        if (incomingProfile.currentWeight === 88) incomingProfile.currentWeight = 86;
-        if (incomingProfile.calorieTarget === 1750) incomingProfile.calorieTarget = 2100;
-        if (incomingProfile.stepTarget === 10000) incomingProfile.stepTarget = 9000;
-        if (incomingProfile.maintenanceCalories === 2450) incomingProfile.maintenanceCalories = 2200;
-      }
-      state.version = DEFAULT_STATE.version;
-      state.profile = incomingProfile;
       state.entries = pruneEntriesBeforeBaseline(payload.entries || {});
       state.selectedDate = maxDateKey(state.selectedDate, TRACKER_START_DATE);
       ensureEntry(state.selectedDate);
@@ -1717,12 +1694,6 @@
 
     function getDefaultBodyPartsForPlan(planName) {
       const normalized = normalizeText(planName);
-      if (normalized.includes("strength")) {
-        return ["Full Body"];
-      }
-      if (normalized.includes("zone") || normalized.includes("cardio")) {
-        return ["Recovery"];
-      }
       if (normalized.includes("chest")) {
         return ["Chest", "Triceps"];
       }
@@ -1874,28 +1845,23 @@
     function createDefaultEntry(dateKey) {
       const plan = getPlan(dateKey);
       const bodyParts = getDefaultBodyPartsForPlan(plan.name);
-      const isZoneTwo = plan.name.includes("Zone 2");
-      const isRecovery = plan.name === "Active Recovery";
-      const cardioDuration = isZoneTwo ? 40 : isRecovery ? 25 : plan.name === "Rest Day" ? 20 : 10;
-      const cardioType = isZoneTwo ? "Cycling" : "Walking";
       return {
         date: dateKey,
         weight: getLatestLoggedWeight(dateKey),
         meals: createDefaultMeals(),
         waterLiters: "",
-        sleepHours: "",
-        alcoholDrinks: "0",
-        hungerLevel: "",
-        kneeStatus: "Good",
-        waistCm: "",
         steps: "",
         workoutDone: false,
         actualBodyParts: bodyParts,
         actualBodyPart: bodyPartsLabel(bodyParts),
-        cardioType,
-        cardioDuration: String(cardioDuration),
+        cardioType: plan.name === "Swimming + Full Body" ? "Swimming" : "Cycling",
+        cardioDuration: plan.name === "Rest Day" ? "20" : "30",
         cardioIntensity: "Moderate",
-        cardioCalories: String(estimateCardioCalories(cardioType, cardioDuration, "Moderate")),
+        cardioCalories: String(estimateCardioCalories(
+          plan.name === "Swimming + Full Body" ? "Swimming" : "Cycling",
+          plan.name === "Rest Day" ? 20 : 30,
+          "Moderate"
+        )),
         strengthCaloriesOverride: "",
         workoutNotes: "",
         exerciseLogs: plan.exercises.map(createExerciseLog)
@@ -1972,27 +1938,6 @@
 
       if (entry.strengthCaloriesOverride === undefined) {
         entry.strengthCaloriesOverride = "";
-        changed = true;
-      }
-
-      if (entry.sleepHours === undefined) {
-        entry.sleepHours = "";
-        changed = true;
-      }
-      if (entry.alcoholDrinks === undefined) {
-        entry.alcoholDrinks = "0";
-        changed = true;
-      }
-      if (entry.hungerLevel === undefined) {
-        entry.hungerLevel = "";
-        changed = true;
-      }
-      if (entry.kneeStatus === undefined) {
-        entry.kneeStatus = "Good";
-        changed = true;
-      }
-      if (entry.waistCm === undefined) {
-        entry.waistCm = "";
         changed = true;
       }
 
@@ -2357,7 +2302,6 @@
       const caloriesBurnt = workoutCalories + cardioCalories + stepCalories;
       const deficit = round(state.profile.maintenanceCalories + caloriesBurnt - foodCalories);
       const waterLiters = roundOne(toNumber(entry.waterLiters));
-      const sleepHours = roundOne(toNumber(entry.sleepHours));
 
       const calorieScore = foodCalories === 0
         ? 0
@@ -2366,10 +2310,7 @@
       const stepsScore = clamp((toNumber(entry.steps) / state.profile.stepTarget) * 100, 0, 100);
       const waterScore = clamp((waterLiters / state.profile.waterTargetLiters) * 100, 0, 100);
       const workoutScore = entry.workoutDone ? 100 : 0;
-      const sleepScore = sleepHours ? clamp((sleepHours / state.profile.sleepTargetHours) * 100, 0, 100) : null;
-      const adherenceComponents = [calorieScore, proteinScore, stepsScore, waterScore, workoutScore, sleepScore]
-        .filter((score) => score !== null);
-      const adherenceScore = round(adherenceComponents.reduce((sum, score) => sum + score, 0) / adherenceComponents.length);
+      const adherenceScore = round((calorieScore + proteinScore + stepsScore + waterScore + workoutScore) / 5);
       const activityScore = round(
         clamp((toNumber(entry.steps) / state.profile.stepTarget) * 50, 0, 50) +
         (entry.workoutDone ? 25 : 0) +
@@ -2387,7 +2328,6 @@
         carbs: roundOne(carbs),
         fat: roundOne(fat),
         waterLiters,
-        sleepHours,
         estimatedWorkoutCalories,
         strengthCaloriesOverride,
         usedStrengthOverride: strengthCaloriesOverride !== null,
@@ -2448,44 +2388,6 @@
         });
       }
 
-      if (metrics.sleepHours > 0 && metrics.sleepHours < state.profile.sleepTargetHours) {
-        feedback.push({
-          tone: "warn",
-          title: "Sleep is below plan",
-          body: `Aim for at least ${state.profile.sleepTargetHours} hours. Short sleep can make hunger and recovery harder to manage.`
-        });
-      }
-
-      if (toNumber(entry.alcoholDrinks) > 0) {
-        feedback.push({
-          tone: "primary",
-          title: "Alcohol logged",
-          body: "Keep the weekly total at two drinks or fewer during the main fat-loss phase."
-        });
-      }
-
-      if (toNumber(entry.hungerLevel) >= 4) {
-        feedback.push({
-          tone: "warn",
-          title: "Hunger is running high",
-          body: "Increase vegetables, dal, tofu, Greek yogurt, or another lean protein before cutting calories further."
-        });
-      }
-
-      if (entry.kneeStatus === "Painful" || entry.kneeStatus === "Swollen/unstable") {
-        feedback.push({
-          tone: "danger",
-          title: "Protect the knee",
-          body: "Switch running and loaded knee work to low-impact cardio. Seek clinical review for swelling, locking, or instability."
-        });
-      } else if (entry.kneeStatus === "Stiff") {
-        feedback.push({
-          tone: "warn",
-          title: "Knee stiffness logged",
-          body: "Use cycling, swimming, rowing, or walking today and keep leg work controlled and pain-free."
-        });
-      }
-
       if (!entry.workoutDone && !metrics.actualBodyParts.every((part) => part === "Rest")) {
         feedback.push({
           tone: "danger",
@@ -2530,128 +2432,6 @@
       }).filter((dateKey) => dateKey >= TRACKER_START_DATE);
     }
 
-    function addDays(dateKey, days) {
-      const date = parseDateKey(dateKey);
-      date.setDate(date.getDate() + days);
-      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-      return local.toISOString().slice(0, 10);
-    }
-
-    function getWeightAverage(endDateKey, dayCount) {
-      const weights = getLastNDates(endDateKey, dayCount)
-        .map((dateKey) => toNumber(state.entries[dateKey]?.weight))
-        .filter(Boolean);
-      return weights.length ? roundOne(weights.reduce((sum, weight) => sum + weight, 0) / weights.length) : 0;
-    }
-
-    function getLatestWeight(endDateKey) {
-      const latestKey = getOrderedEntryKeys()
-        .filter((dateKey) => dateKey <= endDateKey && toNumber(state.entries[dateKey]?.weight))
-        .pop();
-      return latestKey ? toNumber(state.entries[latestKey].weight) : 0;
-    }
-
-    function getAverageAdherence(endDateKey, dayCount) {
-      const populated = getLastNDates(endDateKey, dayCount)
-        .filter((dateKey) => state.entries[dateKey])
-        .map((dateKey) => calculateMetrics(dateKey).adherenceScore);
-      return populated.length ? round(populated.reduce((sum, score) => sum + score, 0) / populated.length) : 0;
-    }
-
-    function getGoalJourney(endDateKey) {
-      const profile = state.profile;
-      const elapsedDays = clamp(daysBetween(profile.goalStartDate, endDateKey), 0, profile.goalDurationDays);
-      const totalToLose = profile.currentWeight - profile.goalWeight;
-      const expectedLoss = totalToLose * (elapsedDays / profile.goalDurationDays);
-      const expectedWeight = roundOne(profile.currentWeight - expectedLoss);
-      const recentWeightLogs = getLastNDates(endDateKey, 14)
-        .map((dateKey) => toNumber(state.entries[dateKey]?.weight))
-        .filter(Boolean);
-      const currentAverage = getWeightAverage(endDateKey, 7) || getLatestWeight(endDateKey) || profile.currentWeight;
-      const previousAverage = getWeightAverage(addDays(endDateKey, -7), 7);
-      const weeklyLossRate = previousAverage && currentAverage ? roundOne(previousAverage - currentAverage) : 0;
-      const actualLoss = roundOne(profile.currentWeight - currentAverage);
-      const remaining = roundOne(Math.max(0, currentAverage - profile.goalWeight));
-      const progressPercent = clamp(round((actualLoss / totalToLose) * 100), 0, 100);
-      const expectedWeeklyRate = roundOne(totalToLose / (profile.goalDurationDays / 7));
-      const variance = roundOne(currentAverage - expectedWeight);
-      const checkpoints = CHECKPOINT_DAYS.map((day, index) => {
-        const dateKey = addDays(profile.goalStartDate, day);
-        const targetWeight = roundOne(profile.currentWeight - totalToLose * (day / profile.goalDurationDays));
-        const due = daysBetween(dateKey, endDateKey) >= 0;
-        const status = !due
-          ? "upcoming"
-          : currentAverage <= targetWeight + 0.75
-            ? "on-track"
-            : "review";
-        return { number: index + 1, day, dateKey, targetWeight, due, status };
-      });
-      const missedCheckpoints = checkpoints.filter((checkpoint) => checkpoint.status === "review").length;
-      const adherence14 = getAverageAdherence(endDateKey, 14);
-
-      let intervention = {
-        tone: "primary",
-        title: "Build the baseline",
-        body: "Log weight at least three mornings each week and complete the daily check-in before changing the plan."
-      };
-
-      if (recentWeightLogs.length < 2) {
-        intervention = {
-          tone: "primary",
-          title: "More weigh-ins needed",
-          body: "Log at least three morning weights each week so decisions use a trend instead of normal day-to-day fluctuation."
-        };
-      } else if (elapsedDays >= 14 && weeklyLossRate > 0.8) {
-        intervention = {
-          tone: "warn",
-          title: "Weight is falling faster than planned",
-          body: "Review energy, recovery, and strength performance. Consider adding 100–200 kcal rather than pushing a larger deficit."
-        };
-      } else if (elapsedDays >= 28 && adherence14 < 70) {
-        intervention = {
-          tone: "warn",
-          title: "Improve consistency before cutting further",
-          body: "Hold calories steady for two weeks and focus on meal logging, protein, steps, sleep, and three strength sessions."
-        };
-      } else if (elapsedDays >= 84 && missedCheckpoints >= 2 && adherence14 >= 75) {
-        intervention = {
-          tone: "danger",
-          title: "Consider professional intervention",
-          body: "Progress remains behind plan despite good adherence. Review calorie accuracy, sleep-apnoea risk, and anti-obesity medication such as tirzepatide with a physician or obesity specialist."
-        };
-      } else if (elapsedDays >= 28 && (weeklyLossRate < 0.2 || variance > 1) && adherence14 >= 75) {
-        intervention = {
-          tone: "warn",
-          title: "Strategy adjustment checkpoint",
-          body: "For the next two weeks, reduce intake by 150–200 kcal or add two short low-impact cardio sessions—not both at once."
-        };
-      } else if (elapsedDays >= 14) {
-        intervention = {
-          tone: "success",
-          title: "Stay the course",
-          body: `The target pace is ${profile.weeklyLossMin}–${profile.weeklyLossMax} kg per week. Avoid changing the plan while the rolling trend remains close to it.`
-        };
-      }
-
-      return {
-        elapsedDays,
-        daysRemaining: Math.max(0, profile.goalDurationDays - elapsedDays),
-        currentAverage,
-        expectedWeight,
-        expectedWeeklyRate,
-        weeklyLossRate,
-        actualLoss,
-        remaining,
-        progressPercent,
-        variance,
-        checkpoints,
-        missedCheckpoints,
-        adherence14,
-        recentWeightLogCount: recentWeightLogs.length,
-        intervention
-      };
-    }
-
     function getWeeklySummary(endDateKey) {
       const dates = getLastNDates(endDateKey, 7);
       const populated = dates.map((dateKey) => {
@@ -2685,10 +2465,6 @@
       const avgWater = populated.length
         ? roundOne(populated.reduce((sum, item) => sum + item.metrics.waterLiters, 0) / populated.length)
         : 0;
-      const avgSleep = populated.length
-        ? roundOne(populated.reduce((sum, item) => sum + item.metrics.sleepHours, 0) / populated.length)
-        : 0;
-      const alcoholDrinks = populated.reduce((sum, item) => sum + toNumber(item.entry.alcoholDrinks), 0);
       const weights = populated.map((item) => toNumber(item.entry.weight)).filter(Boolean);
       const weightChange = weights.length >= 2 ? roundOne(weights[0] - weights[weights.length - 1]) : 0;
 
@@ -2704,12 +2480,6 @@
       }
       if (avgWater > 0 && avgWater < state.profile.waterTargetLiters) {
         suggestions.push(`Average hydration is low. Push daily water closer to ${state.profile.waterTargetLiters} L.`);
-      }
-      if (avgSleep > 0 && avgSleep < state.profile.sleepTargetHours) {
-        suggestions.push(`Average sleep is below ${state.profile.sleepTargetHours} hours. Protect sleep before increasing training or cutting calories.`);
-      }
-      if (alcoholDrinks > 2) {
-        suggestions.push("Alcohol exceeded two drinks this week. Reducing it is the simplest calorie and recovery improvement.");
       }
       if (workoutsDone < 5) {
         suggestions.push("Training frequency slipped this week. Protect the key strength days before adding more cardio.");
@@ -2727,8 +2497,6 @@
         avgAdherence,
         avgBurn,
         avgWater,
-        avgSleep,
-        alcoholDrinks,
         weightChange,
         suggestions
       };
@@ -2737,12 +2505,12 @@
     function buildHeaderStats(dateKey) {
       const metrics = calculateMetrics(dateKey);
       const currentWeight = ensureEntry(dateKey).weight || state.profile.currentWeight;
-      const journey = getGoalJourney(dateKey);
+      const energyBalance = describeEnergyBalance(metrics.deficit);
 
       return [
-        { label: "Goal day", value: journey.elapsedDays + " / " + state.profile.goalDurationDays },
+        { label: "Day", value: dayNumber(dateKey) + " / 90" },
         { label: "Weight", value: currentWeight ? currentWeight + " kg" : "--" },
-        { label: "To goal", value: journey.remaining + " kg" },
+        { label: energyBalance.label, value: energyBalance.valueText },
         { label: "Adherence", value: metrics.adherenceScore + "%" }
       ];
     }
@@ -2876,7 +2644,6 @@
       const metrics = calculateMetrics(state.selectedDate);
       const feedback = buildDailyFeedback(state.selectedDate);
       const energyBalance = describeEnergyBalance(metrics.deficit);
-      const journey = getGoalJourney(state.selectedDate);
       const dashboard = document.getElementById("dashboardView");
 
       dashboard.innerHTML = `
@@ -2905,66 +2672,6 @@
               <div class="metric">
                 <span class="muted">Water target</span>
                 <strong>${state.profile.waterTargetLiters} L</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Goal date</span>
-                <strong>${formatHumanDate(state.profile.goalTargetDate)}</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Rolling weight</span>
-                <strong>${journey.currentAverage} kg</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Planned pace</span>
-                <strong>${state.profile.weeklyLossMin}–${state.profile.weeklyLossMax} kg/wk</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Goal progress</span>
-                <strong>${journey.progressPercent}%</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="feedback-item">
-            <div>
-              <strong>${journey.intervention.title}</strong>
-              <p class="muted">${journey.intervention.body}</p>
-            </div>
-            <span class="tag ${journey.intervention.tone}">${toneLabel(journey.intervention.tone)}</span>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h2>Recovery and sustainability check-in</h2>
-                <p class="muted">Track factors that influence hunger, recovery, and whether the plan needs adjustment.</p>
-              </div>
-            </div>
-            <div class="metric-grid">
-              <div class="field-group">
-                <label>Sleep hours</label>
-                <input class="input" type="number" min="0" max="12" step="0.5" value="${escapeValue(entry.sleepHours)}" data-field="sleepHours">
-              </div>
-              <div class="field-group">
-                <label>Alcohol drinks</label>
-                <input class="input" type="number" min="0" step="1" value="${escapeValue(entry.alcoholDrinks)}" data-field="alcoholDrinks">
-              </div>
-              <div class="field-group">
-                <label>Waist (cm, weekly)</label>
-                <input class="input" type="number" min="0" step="0.5" value="${escapeValue(entry.waistCm)}" data-field="waistCm">
-              </div>
-              <div class="field-group">
-                <label>Hunger (1 low – 5 high)</label>
-                <select class="select" data-field="hungerLevel">
-                  <option value="" ${entry.hungerLevel === "" ? "selected" : ""}>Not logged</option>
-                  ${[1, 2, 3, 4, 5].map((level) => `<option value="${level}" ${toNumber(entry.hungerLevel) === level ? "selected" : ""}>${level}</option>`).join("")}
-                </select>
-              </div>
-              <div class="field-group">
-                <label>Knee status</label>
-                <select class="select" data-field="kneeStatus">
-                  ${["Good", "Stiff", "Painful", "Swollen/unstable"].map((status) => `<option value="${status}" ${entry.kneeStatus === status ? "selected" : ""}>${status}</option>`).join("")}
-                </select>
               </div>
             </div>
           </div>
@@ -3528,7 +3235,6 @@
 
     function renderProgressView() {
       const progressView = document.getElementById("progressView");
-      const journey = getGoalJourney(state.selectedDate);
       const chartDates = getLastNDates(state.selectedDate, 14);
       const chartItems = chartDates.map((dateKey) => {
         const entry = state.entries[dateKey];
@@ -3562,41 +3268,6 @@
       const trendPath = validPoints.map((point) => `${point.x},${point.y}`).join(" ");
 
       progressView.innerHTML = `
-        <div class="card" style="margin-bottom:14px;">
-          <div class="card-header">
-            <div>
-              <h2>Seven-month goal journey</h2>
-              <p class="muted">From ${state.profile.currentWeight} kg to ${state.profile.goalWeight} kg by ${formatHumanDate(state.profile.goalTargetDate)}.</p>
-            </div>
-            <span class="tag ${journey.variance <= 0.75 ? "success" : "warn"}">${journey.progressPercent}% complete</span>
-          </div>
-          <div class="metric-grid">
-            <div class="metric">
-              <span class="muted">7-day average</span>
-              <strong>${journey.currentAverage} kg</strong>
-            </div>
-            <div class="metric">
-              <span class="muted">Expected now</span>
-              <strong>${journey.expectedWeight} kg</strong>
-            </div>
-            <div class="metric">
-              <span class="muted">Latest weekly pace</span>
-              <strong>${journey.weeklyLossRate} kg</strong>
-            </div>
-            <div class="metric">
-              <span class="muted">Days remaining</span>
-              <strong>${journey.daysRemaining}</strong>
-            </div>
-          </div>
-          <div class="feedback-item" style="margin-top:12px;">
-            <div>
-              <strong>${journey.intervention.title}</strong>
-              <p class="muted">${journey.intervention.body}</p>
-            </div>
-            <span class="tag ${journey.intervention.tone}">${toneLabel(journey.intervention.tone)}</span>
-          </div>
-        </div>
-
         <div class="grid progress-grid">
           <div class="card">
             <div class="card-header">
@@ -3640,29 +3311,6 @@
               </div>
             </div>
             ${renderWeeklyAverageCards()}
-          </div>
-        </div>
-
-        <div class="card" style="margin-top:14px;">
-          <div class="card-header">
-            <div>
-              <h2>Progress checkpoints</h2>
-              <p class="muted">Review the rolling average—not a single weigh-in—at each checkpoint.</p>
-            </div>
-          </div>
-          <div class="history-list">
-            ${journey.checkpoints.map((checkpoint) => `
-              <div class="history-row">
-                <div>
-                  <strong>Checkpoint ${checkpoint.number}: day ${checkpoint.day}</strong>
-                  <p class="muted">${formatHumanDate(checkpoint.dateKey)}</p>
-                </div>
-                <div style="text-align:right;">
-                  <strong>${checkpoint.targetWeight} kg target</strong>
-                  <p class="muted">${checkpoint.status === "on-track" ? "On track" : checkpoint.status === "review" ? "Strategy review due" : "Upcoming"}</p>
-                </div>
-              </div>
-            `).join("")}
           </div>
         </div>
 
@@ -3725,14 +3373,6 @@
             <strong>${summary.avgWater} L</strong>
           </div>
           <div class="metric">
-            <span class="muted">Avg sleep</span>
-            <strong>${summary.avgSleep} h</strong>
-          </div>
-          <div class="metric">
-            <span class="muted">Alcohol (week)</span>
-            <strong>${summary.alcoholDrinks}</strong>
-          </div>
-          <div class="metric">
             <span class="muted">Avg total burn</span>
             <strong>${summary.avgBurn} kcal</strong>
           </div>
@@ -3752,7 +3392,6 @@
       const summaryView = document.getElementById("summaryView");
       const summary = getWeeklySummary(state.selectedDate);
       const feedback = buildDailyFeedback(state.selectedDate);
-      const journey = getGoalJourney(state.selectedDate);
       const avgEnergyBalance = describeEnergyBalance(summary.avgDeficit);
       const lastRemoteSync = remoteRuntime.lastSyncAt
         ? new Date(remoteRuntime.lastSyncAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -3786,14 +3425,6 @@
                 <strong>${summary.avgWater} L</strong>
               </div>
               <div class="metric">
-                <span class="muted">Avg sleep</span>
-                <strong>${summary.avgSleep} h</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Alcohol (week)</span>
-                <strong>${summary.alcoholDrinks}</strong>
-              </div>
-              <div class="metric">
                 <span class="muted">Avg adherence</span>
                 <strong>${summary.avgAdherence}%</strong>
               </div>
@@ -3805,23 +3436,6 @@
                 <span class="muted">${avgEnergyBalance.avgLabel}</span>
                 <strong>${avgEnergyBalance.valueText}</strong>
               </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h2>Goal journey checkpoint</h2>
-                <p class="muted">Day ${journey.elapsedDays} of ${state.profile.goalDurationDays} • ${journey.progressPercent}% toward ${state.profile.goalWeight} kg • ${journey.remaining} kg to go.</p>
-              </div>
-              <span class="tag ${journey.variance <= 0.75 ? "success" : "warn"}">${journey.currentAverage} kg now</span>
-            </div>
-            <div class="feedback-item">
-              <div>
-                <strong>${journey.intervention.title}</strong>
-                <p class="muted">${journey.intervention.body}</p>
-              </div>
-              <span class="tag ${journey.intervention.tone}">${toneLabel(journey.intervention.tone)}</span>
             </div>
           </div>
 
