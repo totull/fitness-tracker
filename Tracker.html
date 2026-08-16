@@ -438,6 +438,34 @@
       background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
     }
 
+    .garmin-status {
+      margin: 10px 0 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.45;
+      background: var(--surface-soft);
+      border: 1px solid var(--border);
+    }
+
+    .garmin-status.success {
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+      color: #065f46;
+    }
+
+    .garmin-status.warn {
+      background: #fffbeb;
+      border-color: #fde68a;
+      color: #92400e;
+    }
+
+    .garmin-status.danger {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+
     .weight-panel .input {
       background: #ffffff;
       font-size: 22px;
@@ -1432,6 +1460,13 @@
       renderSaveNote();
     }
 
+    const garminRuntime = { status: "", tone: "primary", syncing: false };
+
+    function setGarminStatus(status, tone = "primary") {
+      garminRuntime.status = status;
+      garminRuntime.tone = tone;
+    }
+
     function resetRemoteClient() {
       if (remoteRuntime.unsubscribe?.unsubscribe) {
         remoteRuntime.unsubscribe.unsubscribe();
@@ -1687,19 +1722,28 @@
 
     async function pullGarminRemotePayload(options = {}) {
       if (!hasRemoteConfig()) {
+        const message = "Add your Supabase URL and anon key in Cloud sync first.";
+        setGarminStatus(message, "warn");
         if (!options.silent) {
-          setRemoteStatus("Cloud sync is not configured yet.", "warn");
+          setRemoteStatus(message, "warn");
           render();
         }
-        return { hasData: false };
+        return { hasData: false, reason: "no-config", message };
       }
 
       let pulledData = null;
+      let reason = "";
+      let message = "";
       try {
         const client = await ensureSupabaseClient();
         if (!remoteRuntime.user) {
-          setRemoteStatus("Sign in first to sync Garmin data.", "warn");
-          return { hasData: false };
+          message = "Sign in under Cloud sync with the same email the companion uses.";
+          setGarminStatus(message, "warn");
+          setRemoteStatus(message, "warn");
+          if (!options.silent) {
+            render();
+          }
+          return { hasData: false, reason: "signed-out", message };
         }
 
         const { data, error } = await client
@@ -1716,18 +1760,49 @@
         if (data?.payload) {
           applyGarminCompanionPayload(data.payload, { queueRemote: false });
           remoteRuntime.lastSyncAt = data.updated_at || new Date().toISOString();
-          setRemoteStatus("Garmin data synced from the companion.", "success");
+          message = "Garmin data synced from the companion.";
+          reason = "ok";
+          setGarminStatus(message, "success");
+          setRemoteStatus(message, "success");
         } else {
+          message = "Signed in, but the companion has not uploaded any data yet. Open the companion and tap “Sync to tracker”.";
+          reason = "no-data";
+          setGarminStatus(message, "warn");
           setRemoteStatus("No companion Garmin sync is available yet.", "warn");
         }
       } catch (error) {
-        setRemoteStatus(error.message || "Garmin sync failed.", "danger");
+        reason = "error";
+        message = describeGarminError(error);
+        setGarminStatus(message, "danger");
+        setRemoteStatus(message, "danger");
       }
 
       if (!options.silent) {
         render();
       }
-      return { hasData: Boolean(pulledData?.payload), updatedAt: pulledData?.updated_at || null };
+      return {
+        hasData: Boolean(pulledData?.payload),
+        updatedAt: pulledData?.updated_at || null,
+        reason,
+        message
+      };
+    }
+
+    function describeGarminError(error) {
+      const raw = String(error?.message || error || "Garmin sync failed.");
+      if (/relation .*does not exist|could not find the table|schema cache/i.test(raw)) {
+        return "The fitness_tracker_garmin_sync table is missing. Run supabase-schema.sql in the Supabase SQL editor.";
+      }
+      if (/jwt|token|unauthorized|401/i.test(raw)) {
+        return "Your cloud session expired. Sign in again under Cloud sync.";
+      }
+      if (/permission denied|row-level security|42501/i.test(raw)) {
+        return "Permission denied by row-level security. Re-run supabase-schema.sql so the policies exist.";
+      }
+      if (/failed to fetch|networkerror/i.test(raw)) {
+        return "Could not reach Supabase. Check your connection and the project URL.";
+      }
+      return raw;
     }
 
     function latestGarminSyncAt() {
@@ -1739,20 +1814,28 @@
     }
 
     async function syncGarmin() {
+      if (garminRuntime.syncing) {
+        return;
+      }
+      garminRuntime.syncing = true;
+      setGarminStatus("Syncing Garmin data…", "primary");
       setRemoteStatus("Syncing Garmin data…", "primary");
       render();
 
-      const result = await pullGarminRemotePayload({ silent: true });
-      const importedAt = latestGarminSyncAt();
-      if (result.hasData && importedAt) {
-        remoteRuntime.lastSyncAt = importedAt;
-        setRemoteStatus(`Garmin synced ${formatDateTime(importedAt)}.`, "success");
-      } else if (result.hasData) {
-        setRemoteStatus("Cloud is connected, but no companion Garmin data is available yet.", "warn");
-      } else {
-        setRemoteStatus("Connect cloud sync before using Garmin sync.", "warn");
+      try {
+        const result = await pullGarminRemotePayload({ silent: true });
+        const importedAt = latestGarminSyncAt();
+        if (result.hasData && importedAt) {
+          remoteRuntime.lastSyncAt = importedAt;
+          const message = `Garmin synced ${formatDateTime(importedAt)}.`;
+          setGarminStatus(message, "success");
+          setRemoteStatus(message, "success");
+          saveState({ queueRemote: false });
+        }
+      } finally {
+        garminRuntime.syncing = false;
+        render();
       }
-      render();
     }
 
     function queueRemoteSync() {
@@ -3421,9 +3504,12 @@
             <span class="tag ${syncTone}">${syncLabel}</span>
           </div>
           <div class="inline-actions">
-            <button class="action-button" type="button" data-action="sync-garmin">Sync Garmin</button>
+            <button class="action-button" type="button" data-action="sync-garmin"${garminRuntime.syncing ? " disabled" : ""}>${garminRuntime.syncing ? "Syncing…" : "Sync Garmin"}</button>
             <span class="muted">Last sync ${escapeText(importedAt)}</span>
           </div>
+          ${garminRuntime.status ? `
+            <p class="garmin-status ${escapeText(garminRuntime.tone)}">${escapeText(garminRuntime.status)}</p>
+          ` : ""}
           <div class="metric-grid" style="margin-top:12px;">
             <div class="metric">
               <span class="muted">Steps</span>
@@ -4275,7 +4361,57 @@
       `;
     }
 
+    function captureFocusState() {
+      const active = document.activeElement;
+      if (!active || !(active instanceof HTMLElement)) {
+        return null;
+      }
+      const isEditable = active.matches("input, textarea, select");
+      if (!isEditable) {
+        return null;
+      }
+      let selector = "";
+      if (active.id) {
+        selector = `#${CSS.escape(active.id)}`;
+      } else if (active.dataset.field) {
+        selector = `[data-field="${CSS.escape(active.dataset.field)}"]`;
+      } else if (active.dataset.liveField) {
+        selector = `[data-live-field="${CSS.escape(active.dataset.liveField)}"]`;
+      }
+      if (!selector) {
+        return null;
+      }
+      let selectionStart = null;
+      let selectionEnd = null;
+      try {
+        selectionStart = active.selectionStart;
+        selectionEnd = active.selectionEnd;
+      } catch (error) {
+        selectionStart = null;
+      }
+      return { selector, selectionStart, selectionEnd };
+    }
+
+    function restoreFocusState(snapshot) {
+      if (!snapshot) {
+        return;
+      }
+      const next = document.querySelector(snapshot.selector);
+      if (!next || next === document.activeElement) {
+        return;
+      }
+      next.focus({ preventScroll: true });
+      if (snapshot.selectionStart !== null) {
+        try {
+          next.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+        } catch (error) {
+          // Inputs such as number/date do not support selection ranges.
+        }
+      }
+    }
+
     function render() {
+      const focusSnapshot = captureFocusState();
       ensureEntry(state.selectedDate);
       renderHeader();
       renderSaveNote();
@@ -4284,6 +4420,7 @@
       renderLogView();
       renderProgressView();
       renderSummaryView();
+      restoreFocusState(focusSnapshot);
     }
 
     function updateExerciseSetCount(exercise, nextCount) {
