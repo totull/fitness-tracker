@@ -782,7 +782,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./garmin-importer.js"></script>
   <script>
     const STORAGE_KEY = "fitness-tracker-local-v4";
     const DAY_MS = 24 * 60 * 60 * 1000;
@@ -1035,7 +1034,6 @@
     ];
 
     const REMOTE_TABLE = "fitness_tracker_state";
-    const REMOTE_GARMIN_TABLE = "fitness_tracker_garmin_sync";
     const REMOTE_REDIRECT = typeof window !== "undefined"
       ? window.location.href.split("#")[0].split("?")[0]
       : "";
@@ -1160,25 +1158,6 @@
 
     function roundOne(value) {
       return Math.round(value * 10) / 10;
-    }
-
-    function formatNumber(value) {
-      return toNumber(value).toLocaleString();
-    }
-
-    function formatDateTime(value) {
-      if (!value) {
-        return "—";
-      }
-      const date = new Date(value);
-      return Number.isNaN(date.getTime())
-        ? "—"
-        : date.toLocaleString(undefined, {
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit"
-        });
     }
 
     function normalizeText(value) {
@@ -1639,10 +1618,9 @@
           setRemoteStatus("Cloud sync is not configured yet.", "warn");
           render();
         }
-        return { hasData: false };
+        return;
       }
 
-      let pulledData = null;
       try {
         const client = await ensureSupabaseClient();
         if (!remoteRuntime.user) {
@@ -1650,7 +1628,7 @@
           if (!options.silent) {
             render();
           }
-          return { hasData: false };
+          return;
         }
 
         const { data, error } = await client
@@ -1662,7 +1640,6 @@
         if (error) {
           throw error;
         }
-        pulledData = data;
 
         if (!data?.payload) {
           setRemoteStatus("No cloud data yet. Push local data to create your first backup.", "warn");
@@ -1682,77 +1659,6 @@
       if (!options.silent) {
         render();
       }
-      return { hasData: Boolean(pulledData?.payload), updatedAt: pulledData?.updated_at || null };
-    }
-
-    async function pullGarminRemotePayload(options = {}) {
-      if (!hasRemoteConfig()) {
-        if (!options.silent) {
-          setRemoteStatus("Cloud sync is not configured yet.", "warn");
-          render();
-        }
-        return { hasData: false };
-      }
-
-      let pulledData = null;
-      try {
-        const client = await ensureSupabaseClient();
-        if (!remoteRuntime.user) {
-          setRemoteStatus("Sign in first to sync Garmin data.", "warn");
-          return { hasData: false };
-        }
-
-        const { data, error } = await client
-          .from(REMOTE_GARMIN_TABLE)
-          .select("payload, updated_at")
-          .eq("user_id", remoteRuntime.user.id)
-          .maybeSingle();
-
-        if (error) {
-          throw error;
-        }
-        pulledData = data;
-
-        if (data?.payload) {
-          applyGarminCompanionPayload(data.payload, { queueRemote: false });
-          remoteRuntime.lastSyncAt = data.updated_at || new Date().toISOString();
-          setRemoteStatus("Garmin data synced from the companion.", "success");
-        } else {
-          setRemoteStatus("No companion Garmin sync is available yet.", "warn");
-        }
-      } catch (error) {
-        setRemoteStatus(error.message || "Garmin sync failed.", "danger");
-      }
-
-      if (!options.silent) {
-        render();
-      }
-      return { hasData: Boolean(pulledData?.payload), updatedAt: pulledData?.updated_at || null };
-    }
-
-    function latestGarminSyncAt() {
-      return Object.values(state.entries)
-        .map((entry) => entry?.garmin?.importedAt || "")
-        .filter(Boolean)
-        .sort()
-        .at(-1) || "";
-    }
-
-    async function syncGarmin() {
-      setRemoteStatus("Syncing Garmin data…", "primary");
-      render();
-
-      const result = await pullGarminRemotePayload({ silent: true });
-      const importedAt = latestGarminSyncAt();
-      if (result.hasData && importedAt) {
-        remoteRuntime.lastSyncAt = importedAt;
-        setRemoteStatus(`Garmin synced ${formatDateTime(importedAt)}.`, "success");
-      } else if (result.hasData) {
-        setRemoteStatus("Cloud is connected, but no companion Garmin data is available yet.", "warn");
-      } else {
-        setRemoteStatus("Connect cloud sync before using Garmin sync.", "warn");
-      }
-      render();
     }
 
     function queueRemoteSync() {
@@ -1992,19 +1898,7 @@
         cardioCalories: String(estimateCardioCalories(cardioType, cardioDuration, "Moderate")),
         strengthCaloriesOverride: "",
         workoutNotes: "",
-        exerciseLogs: plan.exercises.map(createExerciseLog),
-        garmin: {
-          source: "",
-          importedAt: "",
-          importedFields: [],
-          manualFields: [],
-          activeCalories: null,
-          totalCalories: null,
-          distanceKm: null,
-          restingHeartRate: null,
-          bodyFatPercent: null,
-          exerciseSessions: []
-        }
+        exerciseLogs: plan.exercises.map(createExerciseLog)
       };
     }
 
@@ -2101,38 +1995,6 @@
         entry.waistCm = "";
         changed = true;
       }
-      if (!entry.garmin || typeof entry.garmin !== "object") {
-        entry.garmin = {
-          source: "",
-          importedAt: "",
-          importedFields: [],
-          manualFields: [],
-          activeCalories: null,
-          totalCalories: null,
-          distanceKm: null,
-          restingHeartRate: null,
-          bodyFatPercent: null,
-          exerciseSessions: []
-        };
-        changed = true;
-      } else {
-        entry.garmin = {
-          source: "",
-          importedAt: "",
-          importedFields: [],
-          manualFields: [],
-          activeCalories: null,
-          totalCalories: null,
-          distanceKm: null,
-          restingHeartRate: null,
-          bodyFatPercent: null,
-          exerciseSessions: [],
-          ...entry.garmin,
-          importedFields: Array.isArray(entry.garmin.importedFields) ? entry.garmin.importedFields : [],
-          manualFields: Array.isArray(entry.garmin.manualFields) ? entry.garmin.manualFields : [],
-          exerciseSessions: Array.isArray(entry.garmin.exerciseSessions) ? entry.garmin.exerciseSessions : []
-        };
-      }
 
       syncActualBodyPartLabel(entry);
 
@@ -2156,149 +2018,6 @@
       }
 
       return entry;
-    }
-
-    function markGarminManualField(entry, fieldName) {
-      if (!entry.garmin || !Array.isArray(entry.garmin.manualFields)) {
-        return;
-      }
-      if (!entry.garmin.manualFields.includes(fieldName)) {
-        entry.garmin.manualFields.push(fieldName);
-      }
-    }
-
-    function isGarminDefaultValue(entry, fieldName, value) {
-      if (fieldName === "weight") {
-        return String(value) === String(getLatestLoggedWeight(entry.date));
-      }
-      const defaults = createDefaultEntry(entry.date);
-      return String(value) === String(defaults[fieldName] ?? "");
-    }
-
-    function applyGarminField(entry, fieldName, value, importedFields) {
-      if (value === null || value === undefined || value === "") {
-        return;
-      }
-      const manualFields = entry.garmin.manualFields || [];
-      const currentValue = entry[fieldName];
-      if (manualFields.includes(fieldName) || (
-        currentValue !== "" &&
-        currentValue !== null &&
-        currentValue !== undefined &&
-        !(entry.garmin.importedFields || []).includes(fieldName) &&
-        !isGarminDefaultValue(entry, fieldName, currentValue)
-      )) {
-        return;
-      }
-      entry[fieldName] = String(value);
-      if (!importedFields.includes(fieldName)) {
-        importedFields.push(fieldName);
-      }
-    }
-
-    function appendGarminWorkoutNote(entry, note, importedFields) {
-      if (!note) {
-        return;
-      }
-      const notes = String(note);
-      if (entry.garmin.manualFields.includes("workoutNotes")) {
-        return;
-      }
-      const current = String(entry.workoutNotes || "");
-      if (!current || entry.garmin.importedFields.includes("workoutNotes")) {
-        entry.workoutNotes = notes;
-        if (!importedFields.includes("workoutNotes")) {
-          importedFields.push("workoutNotes");
-        }
-      }
-    }
-
-    function applyGarminCompanionPayload(payload, options = {}) {
-      const patch = payload?.trackerPayloadPatch;
-      if (!patch || typeof patch.entries !== "object" || Array.isArray(patch.entries)) {
-        throw new Error("This file is not a valid Fitness Tracker companion export.");
-      }
-
-      const importedAt = payload.exportedAt || patch.generatedAt || new Date().toISOString();
-      const summaries = new Map(
-        (Array.isArray(payload.dailySummaries) ? payload.dailySummaries : [])
-          .filter((summary) => summary && summary.date)
-          .map((summary) => [summary.date, summary])
-      );
-      let appliedDays = 0;
-      let appliedFields = 0;
-
-      Object.entries(patch.entries).forEach(([dateKey, imported]) => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !imported || typeof imported !== "object") {
-          return;
-        }
-        const entry = ensureEntry(dateKey);
-        const importedFields = Array.isArray(entry.garmin.importedFields)
-          ? entry.garmin.importedFields
-          : [];
-        const before = importedFields.length;
-
-        ["weight", "steps", "sleepHours", "cardioType", "cardioDuration", "cardioCalories"].forEach((fieldName) => {
-          applyGarminField(entry, fieldName, imported[fieldName], importedFields);
-        });
-        if (imported.workoutDone === true && !entry.garmin.manualFields.includes("workoutDone")) {
-          entry.workoutDone = true;
-          if (!importedFields.includes("workoutDone")) {
-            importedFields.push("workoutDone");
-          }
-        }
-        appendGarminWorkoutNote(entry, imported.workoutNotes, importedFields);
-
-        const summary = summaries.get(dateKey);
-        if (summary) {
-          entry.garmin.activeCalories = Number.isFinite(Number(summary.activeCaloriesKcal))
-            ? Number(summary.activeCaloriesKcal)
-            : null;
-          entry.garmin.totalCalories = Number.isFinite(Number(summary.totalCaloriesKcal))
-            ? Number(summary.totalCaloriesKcal)
-            : null;
-          entry.garmin.distanceKm = Number.isFinite(Number(summary.distanceKm))
-            ? Number(summary.distanceKm)
-            : null;
-          entry.garmin.restingHeartRate = Number.isFinite(Number(summary.averageRestingHeartRateBpm))
-            ? Number(summary.averageRestingHeartRateBpm)
-            : null;
-          entry.garmin.bodyFatPercent = Number.isFinite(Number(summary.latestBodyFatPercent))
-            ? Number(summary.latestBodyFatPercent)
-            : null;
-          entry.garmin.exerciseSessions = Array.isArray(summary.exerciseSessions)
-            ? summary.exerciseSessions
-            : [];
-        }
-
-        entry.garmin.source = payload.source?.provider || "Health Connect";
-        entry.garmin.importedAt = importedAt;
-        entry.garmin.importedFields = importedFields;
-        appliedDays += 1;
-        appliedFields += importedFields.length - before;
-      });
-
-      if (!appliedDays) {
-        throw new Error("The companion export contained no dated tracker entries.");
-      }
-
-      saveState({ queueRemote: options.queueRemote !== false });
-      render();
-      return { appliedDays, appliedFields, importedAt };
-    }
-
-    async function importGarminCompanionFile(file) {
-      if (!file) {
-        return;
-      }
-      const text = await file.text();
-      let payload;
-      try {
-        payload = JSON.parse(text);
-      } catch (error) {
-        throw new Error("The selected file is not valid JSON.");
-      }
-      return applyGarminCompanionPayload(payload);
     }
 
     function estimateCardioCalories(type, duration, intensity) {
@@ -3396,86 +3115,6 @@
       `;
     }
 
-    function renderGarminImportSummary(entry) {
-      const garmin = entry.garmin || {};
-      const hasImport = Boolean(garmin.importedAt);
-      const importedAt = hasImport ? formatDateTime(garmin.importedAt) : "Not synced yet";
-      const activeCalories = Number.isFinite(Number(garmin.activeCalories))
-        ? `${round(garmin.activeCalories)} kcal`
-        : "—";
-      const sleep = toNumber(entry.sleepHours) ? `${roundOne(toNumber(entry.sleepHours))} h` : "—";
-      const weight = toNumber(entry.weight) ? `${roundOne(toNumber(entry.weight))} kg` : "—";
-      const sessions = Array.isArray(garmin.exerciseSessions) ? garmin.exerciseSessions : [];
-      const nonStrengthSessions = sessions.filter((session) => !/strength/i.test(session.title || ""));
-      const strengthSessions = sessions.filter((session) => /strength/i.test(session.title || ""));
-      const syncLabel = hasImport ? "Up to date" : "Not synced";
-      const syncTone = hasImport ? "success" : "warn";
-
-      return `
-        <div class="card garmin-card">
-          <div class="card-header">
-            <div>
-              <h2>Garmin data</h2>
-              <p class="muted">Imported values reduce manual entry; correct them inline only when needed.</p>
-            </div>
-            <span class="tag ${syncTone}">${syncLabel}</span>
-          </div>
-          <div class="inline-actions">
-            <button class="action-button" type="button" data-action="sync-garmin">Sync Garmin</button>
-            <span class="muted">Last sync ${escapeText(importedAt)}</span>
-          </div>
-          <div class="metric-grid" style="margin-top:12px;">
-            <div class="metric">
-              <span class="muted">Steps</span>
-              <strong>${toNumber(entry.steps) ? formatNumber(toNumber(entry.steps)) : "—"}</strong>
-            </div>
-            <div class="metric">
-              <span class="muted">Active calories</span>
-              <strong>${escapeText(activeCalories)}</strong>
-            </div>
-            <div class="metric">
-              <span class="muted">Sleep</span>
-              <strong>${escapeText(sleep)}</strong>
-            </div>
-            <div class="metric">
-              <span class="muted">Weight</span>
-              <strong>${escapeText(weight)}</strong>
-            </div>
-            <div class="metric">
-              <span class="muted">Workout</span>
-              <strong>${strengthSessions.length ? "Detected" : "Not detected"}</strong>
-            </div>
-          </div>
-          ${nonStrengthSessions.length ? `
-            <div class="feedback-list" style="margin-top:14px;">
-              ${nonStrengthSessions.map((session) => `
-                <div class="feedback-item">
-                  <div>
-                    <strong>${escapeText(session.title || "Activity")}</strong>
-                    <p class="muted">${escapeText(session.startTime || "")}</p>
-                  </div>
-                  <span class="tag primary">${escapeText(session.durationMinutes || 0)} min</span>
-                </div>
-              `).join("")}
-            </div>
-          ` : `<p class="muted" style="margin-top:12px;">No imported activities for this day. Steps, sleep, and recovery can still sync.</p>`}
-          ${strengthSessions.length ? `
-            <div class="feedback-callout" style="margin-top:12px;">
-              <strong>Strength activity found</strong>
-              <p>${escapeText(strengthSessions.map((session) => `${session.title || "Strength"} ${session.durationMinutes || 0} min`).join("; "))}. Confirm it in Workout before marking the plan complete.</p>
-            </div>
-          ` : ""}
-          <p class="muted" style="margin-top:10px;">Active calories are contextual and are not added to food targets automatically. Food intake is logged in Meals.</p>
-          <details style="margin-top:12px;">
-            <summary>Manual recovery import</summary>
-            <p class="muted" style="margin:10px 0;">Use this only if the companion cannot reach the cloud yet.</p>
-            <button class="ghost-button" type="button" data-action="garmin-select-file">Choose companion JSON</button>
-            <input id="garminFileInput" class="sr-only" type="file" accept="application/json,.json">
-          </details>
-        </div>
-      `;
-    }
-
     function renderLogView() {
       const entry = ensureEntry(state.selectedDate);
       const plan = getPlan(state.selectedDate);
@@ -3527,8 +3166,6 @@
               </div>
             </div>
           </div>
-
-          ${renderGarminImportSummary(entry)}
 
           <div class="card summary-highlight ${energyTone}">
             <div class="summary-highlight-top">
@@ -4337,7 +3974,6 @@
       }
 
       const entry = ensureEntry(state.selectedDate);
-      markGarminManualField(entry, target.dataset.liveField);
       entry[target.dataset.liveField] = target.value;
     }
 
@@ -4373,7 +4009,6 @@
       }
 
       if (target.dataset.field) {
-        markGarminManualField(entry, target.dataset.field);
         entry[target.dataset.field] = target.value;
         if (["cardioType", "cardioDuration", "cardioIntensity"].includes(target.dataset.field)) {
           syncCardioEstimate(entry);
@@ -4415,16 +4050,6 @@
     function handleClick(event) {
       const button = event.target.closest("button");
       if (!button) {
-        return;
-      }
-
-      if (button.dataset.action === "garmin-select-file") {
-        document.getElementById("garminFileInput")?.click();
-        return;
-      }
-
-      if (button.dataset.action === "sync-garmin") {
-        syncGarmin();
         return;
       }
 
@@ -4644,33 +4269,8 @@
       }
     }
 
-    async function handleGarminFileChange(event) {
-      const input = event.target;
-      const file = input.files?.[0];
-      if (!file) {
-        return;
-      }
-
-      try {
-        const result = await importGarminCompanionFile(file);
-        window.alert(
-          `Garmin data imported for ${result.appliedDays} day${result.appliedDays === 1 ? "" : "s"} ` +
-          `(${result.appliedFields} field${result.appliedFields === 1 ? "" : "s"} applied).`
-        );
-      } catch (error) {
-        window.alert(error.message || "Unable to import Garmin data.");
-      } finally {
-        input.value = "";
-      }
-    }
-
     document.addEventListener("input", handleInput);
     document.addEventListener("change", handleChange);
-    document.addEventListener("change", (event) => {
-      if (event.target.id === "garminFileInput") {
-        handleGarminFileChange(event);
-      }
-    });
     document.addEventListener("click", handleClick);
 
     render();

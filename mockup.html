@@ -1,0 +1,2781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fitness Tracker UX Mockup</title>
+  <style>
+    :root {
+      --bg: #eef4ff;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --border: #d8e1ee;
+      --text: #172033;
+      --muted: #63718c;
+      --primary: #2563eb;
+      --primary-soft: #dbeafe;
+      --success: #15803d;
+      --success-soft: #dcfce7;
+      --warn: #b45309;
+      --warn-soft: #ffedd5;
+      --danger: #b91c1c;
+      --danger-soft: #fee2e2;
+      --recent: #6d28d9;
+      --recent-soft: #ede9fe;
+      --shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #eaf2ff 0%, #f8fafc 100%);
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button,
+    .summary-link {
+      min-height: 44px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      background: var(--surface-soft);
+      color: var(--text);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 84px;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    p {
+      margin: 0;
+    }
+
+    .app-shell {
+      width: min(1180px, calc(100% - 20px));
+      margin: 0 auto;
+      padding: 16px 0 calc(104px + env(safe-area-inset-bottom));
+    }
+
+    .app-header,
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+    }
+
+    .app-header {
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .header-main {
+      display: grid;
+      gap: 14px;
+      align-items: start;
+      margin-top: 10px;
+    }
+
+    .header-copy h1 {
+      font-size: 28px;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+
+    .header-copy p,
+    .muted,
+    .footnote {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .header-actions,
+    .button-row,
+    .chip-row,
+    .quick-choice-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .header-actions button,
+    .primary-button,
+    .secondary-button,
+    .ghost-button,
+    .chip-button,
+    .summary-link,
+    .nav-button {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 700;
+      transition: 0.2s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+    }
+
+    .primary-button {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .secondary-button,
+    .chip-button.active,
+    .nav-button.active {
+      background: var(--primary-soft);
+      border-color: #93c5fd;
+      color: var(--primary);
+    }
+
+    .ghost-button {
+      background: var(--surface-soft);
+    }
+
+    .summary-link {
+      background: transparent;
+    }
+
+    .status-grid,
+    .metric-grid,
+    .nutrition-grid,
+    .input-grid,
+    .schedule-grid,
+    .progress-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .status-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 14px;
+    }
+
+    .status-pill,
+    .metric-card,
+    .mini-stat,
+    .history-row,
+    .flow-item,
+    .meal-slot,
+    .exercise-card,
+    .legend-item,
+    .schedule-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface-soft);
+    }
+
+    .status-pill,
+    .metric-card,
+    .mini-stat,
+    .legend-item,
+    .schedule-item {
+      padding: 14px;
+    }
+
+    .status-pill span,
+    .field-label,
+    .metric-label,
+    .set-label,
+    .small-label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .status-pill strong,
+    .metric-card strong,
+    .mini-stat strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .metric-inline-input {
+      margin-top: 6px;
+      font-size: 20px;
+      font-weight: 700;
+      padding: 8px 10px;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .today-layout,
+    .plan-layout,
+    .progress-layout {
+      display: grid;
+      gap: 16px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card-header,
+    .meal-head,
+    .metric-head,
+    .workout-top,
+    .schedule-head,
+    .history-row,
+    .flow-item,
+    .exercise-top,
+    .set-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-header,
+    .meal-head,
+    .metric-head,
+    .workout-top,
+    .schedule-head,
+    .exercise-top {
+      align-items: start;
+    }
+
+    .card-copy h2 {
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+
+    .tag,
+    .source-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .tag.primary,
+    .source-badge.planned {
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .tag.success,
+    .source-badge.imported {
+      background: var(--success-soft);
+      color: var(--success);
+    }
+
+    .tag.warn,
+    .source-badge.estimated {
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+
+    .tag.danger,
+    .source-badge.manual {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .source-badge.recent {
+      background: var(--recent-soft);
+      color: var(--recent);
+    }
+
+    .source-badge.rest {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .sync-state-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .sync-flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .sync-node {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .sync-node.current {
+      background: var(--primary-soft);
+      border-color: #93c5fd;
+      color: var(--primary);
+    }
+
+    .sync-arrow {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .quick-weight {
+      display: grid;
+      gap: 8px;
+      margin: 14px 0;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, #fff, #f8fbff);
+    }
+
+    .weight-row,
+    .inline-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .inline-control input,
+    .set-row input,
+    .tiny-input {
+      width: auto;
+      min-width: 0;
+    }
+
+    .weight-row input {
+      flex: 1 1 120px;
+      max-width: 160px;
+    }
+
+    .suffix {
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .flow-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .flow-item {
+      padding: 14px;
+      align-items: start;
+    }
+
+    .flow-item.complete {
+      border-color: #bbf7d0;
+    }
+
+    .flow-item.pending {
+      border-color: #fdba74;
+    }
+
+    .score-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .mini-stat {
+      box-shadow: none;
+    }
+
+    .inline-note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      line-height: 1.5;
+    }
+
+    .inline-note.primary {
+      background: var(--primary-soft);
+      color: var(--primary);
+      border-color: #93c5fd;
+    }
+
+    .inline-note.success {
+      background: var(--success-soft);
+      color: var(--success);
+      border-color: #86efac;
+    }
+
+    .inline-note.warn {
+      background: var(--warn-soft);
+      color: var(--warn);
+      border-color: #fdba74;
+    }
+
+    .inline-note.danger {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-color: #fca5a5;
+    }
+
+    .metric-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .metric-card p,
+    .meal-slot p,
+    .schedule-item p,
+    .legend-item p,
+    .history-row p,
+    .exercise-card p,
+    .set-row small {
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    details.disclosure {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: #fff;
+      overflow: hidden;
+    }
+
+    details.disclosure summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    details.disclosure summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.disclosure summary::after {
+      content: "+";
+      font-size: 18px;
+      color: var(--muted);
+    }
+
+    details.disclosure[open] summary::after {
+      content: "–";
+    }
+
+    .disclosure-body {
+      padding: 0 16px 16px;
+    }
+
+    .manual-form,
+    .meal-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .input-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .meal-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .meal-slot {
+      padding: 14px;
+    }
+
+    .meal-current {
+      margin-top: 8px;
+      font-weight: 700;
+    }
+
+    .quick-choice-row {
+      margin-top: 12px;
+    }
+
+    .chip-button {
+      background: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 9px 12px;
+    }
+
+    .macro-row {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .macro-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .exercise-list,
+    .history-list,
+    .activity-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .exercise-card {
+      padding: 14px;
+    }
+
+    .exercise-card h4 {
+      font-size: 16px;
+    }
+
+    .exercise-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .set-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .set-row {
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+      align-items: end;
+    }
+
+    .set-row label {
+      display: grid;
+      gap: 6px;
+      flex: 1 1 88px;
+    }
+
+    .set-row input[type="number"] {
+      width: 100%;
+      padding: 10px 12px;
+    }
+
+    .check-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .check-wrap input {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+    }
+
+    .chip-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .chip-group button {
+      min-width: 52px;
+    }
+
+    .chip-group button[aria-pressed="true"] {
+      background: var(--primary-soft);
+      border-color: #93c5fd;
+      color: var(--primary);
+    }
+
+    .chip-group button.is-danger[aria-pressed="true"] {
+      background: var(--danger-soft);
+      border-color: #fca5a5;
+      color: var(--danger);
+    }
+
+    .chart-shell {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, #fff, #f8fbff);
+    }
+
+    .chart-shell svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .axis-row,
+    .legend-row,
+    .bar-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    .legend-row {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .progress-bars {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .bar-fill.primary {
+      background: var(--primary);
+    }
+
+    .bar-fill.success {
+      background: var(--success);
+    }
+
+    .bar-fill.warn {
+      background: var(--warn);
+    }
+
+    .history-row {
+      padding: 12px 14px;
+      align-items: center;
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface-soft);
+    }
+
+    .activity-meta {
+      display: grid;
+      gap: 4px;
+    }
+
+    .activity-stats {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .activity-stat {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .history-metric {
+      min-width: 120px;
+      flex: 1 1 0;
+    }
+
+    .schedule-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin-top: 14px;
+    }
+
+    .schedule-item {
+      display: grid;
+      gap: 10px;
+    }
+
+    .schedule-item.selected {
+      border-color: #93c5fd;
+      box-shadow: inset 0 0 0 1px #93c5fd;
+    }
+
+    .schedule-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      left: 50%;
+      bottom: max(10px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      width: min(calc(100% - 16px), 760px);
+      padding: 10px;
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      z-index: 20;
+    }
+
+    .nav-button {
+      padding: 12px 10px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (min-width: 860px) {
+      .header-main {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .today-layout {
+        grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+      }
+
+      .progress-layout {
+        grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+      }
+
+      .plan-layout {
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+      }
+
+      .span-two {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 859px) {
+      .sync-state-grid,
+      .score-row,
+      .input-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app-shell {
+        width: min(100%, calc(100% - 12px));
+      }
+
+      .app-header,
+      .card {
+        border-radius: 20px;
+      }
+
+      .header-copy h1 {
+        font-size: 22px;
+      }
+
+      .header-copy p {
+        display: none;
+      }
+
+      .status-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .status-pill {
+        padding: 10px;
+      }
+
+      .status-pill span {
+        font-size: 10px;
+      }
+
+      .status-pill strong {
+        font-size: 14px;
+      }
+
+      .header-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .header-actions button {
+        padding: 9px 6px;
+        font-size: 12px;
+      }
+
+      .garmin-card .metric-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .garmin-card .metric-card {
+        padding: 10px;
+      }
+
+      .garmin-card .metric-label {
+        font-size: 10px;
+      }
+
+      .flow-item,
+      .meal-head,
+      .workout-top,
+      .card-header,
+      .schedule-head,
+      .exercise-top,
+      .history-row,
+      .activity-item {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .set-row {
+        align-items: stretch;
+      }
+
+      .activity-stats {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .metric-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <span class="eyebrow">Mockup only · sample data · production untouched</span>
+      <div class="header-main">
+        <div class="header-copy">
+          <h1>Fitness Tracker P0/P1 UX mockup</h1>
+          <p id="headerMeta">
+            Today-first check-in mockup with Garmin data shown only where it reduces manual entry. This mockup does not read, write, or migrate real tracker data.
+          </p>
+        </div>
+        <div class="header-actions" aria-label="Date controls">
+          <button type="button" class="ghost-button" data-day-nav="-1">Previous day</button>
+          <button type="button" class="secondary-button" data-day-nav="0">Today</button>
+          <button type="button" class="ghost-button" data-day-nav="1">Next day</button>
+        </div>
+      </div>
+      <div class="status-grid" aria-label="Daily status">
+        <div class="status-pill">
+          <span>Date</span>
+          <strong id="headerDate">--</strong>
+        </div>
+        <div class="status-pill">
+          <span>Needs attention</span>
+          <strong id="headerAttention">--</strong>
+        </div>
+        <div class="status-pill">
+          <span>Garmin state</span>
+          <strong id="headerSync">--</strong>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="todayPanel" class="tab-panel active" role="tabpanel" aria-labelledby="tabToday"></section>
+      <section id="progressPanel" class="tab-panel" role="tabpanel" aria-labelledby="tabProgress"></section>
+      <section id="planPanel" class="tab-panel" role="tabpanel" aria-labelledby="tabPlan"></section>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" role="tablist" aria-label="Primary navigation">
+    <button id="tabToday" class="nav-button active" type="button" role="tab" aria-selected="true" aria-controls="todayPanel" data-tab="today">Today</button>
+    <button id="tabProgress" class="nav-button" type="button" role="tab" aria-selected="false" aria-controls="progressPanel" data-tab="progress">Progress</button>
+    <button id="tabPlan" class="nav-button" type="button" role="tab" aria-selected="false" aria-controls="planPanel" data-tab="plan">Plan</button>
+  </nav>
+
+  <div id="announcer" class="sr-only" aria-live="polite"></div>
+
+  <script>
+    const TARGETS = {
+      calories: 2100,
+      protein: 130,
+      steps: 9000,
+      sleep: 7
+    };
+
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const PROVIDER = "Garmin Connect";
+    const GARMIN_METRICS = [
+      { key: "steps", label: "Steps", step: "1" },
+      { key: "activeCalories", label: "Active calories", step: "1" },
+      { key: "sleepHours", label: "Sleep", step: "0.1" }
+    ];
+
+    const PLAN_ROTATION = [
+      {
+        name: "Full Body Strength B",
+        type: "strength",
+        focus: "Fast full-body strength with previous-load cues.",
+        duration: "45–55 min",
+        mealTheme: "Higher-protein default meals",
+        adaptation: "Knee stiff? Swap the step-up for bike warm-up plus partial-range leg press and keep pain at or below 3/10.",
+        exercises: [
+          { name: "Step-up to low box", alt: "Bike warm-up + partial-range leg press", previous: "10 kg × 8 × 3", target: "10 kg × 8–10 × 3", setCount: 3 },
+          { name: "Lat pulldown", alt: "Chest-supported row", previous: "42.5 kg × 10 × 3", target: "42.5–45 kg × 8–10", setCount: 3 },
+          { name: "Seated shoulder press", alt: "Landmine press", previous: "16 kg × 8 × 3", target: "16 kg × 8–9", setCount: 3 },
+          { name: "Hip thrust", alt: "Glute bridge machine", previous: "90 kg × 10 × 3", target: "90 kg × 10", setCount: 3 }
+        ]
+      },
+      {
+        name: "Zone 2 Cardio + Mobility",
+        type: "cardio",
+        focus: "Easy-to-review imported activity with a short mobility block.",
+        duration: "40 min + 10 min",
+        mealTheme: "Normal intake, lighter dinner works well",
+        adaptation: "If the knee is painful, keep resistance low and choose cycling, rowing, or walking instead of loaded flexion.",
+        exercises: [
+          { name: "Bike / row / incline walk", alt: "Easy bike spin", previous: "42 min steady", target: "40–45 min zone 2", setCount: 2 },
+          { name: "Mobility flow", alt: "Mobility flow", previous: "12 min", target: "10 min", setCount: 2 }
+        ]
+      },
+      {
+        name: "Full Body Strength C",
+        type: "strength",
+        focus: "Second strength day with quick set logging if wanted.",
+        duration: "45–55 min",
+        mealTheme: "Protein-forward lunch and dinner",
+        adaptation: "If the knee feels loaded, use controlled range squats or swap to hamstring curl plus sled/bike work.",
+        exercises: [
+          { name: "Goblet squat", alt: "Box squat to comfortable depth", previous: "24 kg × 10 × 3", target: "24–26 kg × 8–10", setCount: 3 },
+          { name: "Incline chest press", alt: "Machine chest press", previous: "22 kg × 9 × 3", target: "22–24 kg × 8–10", setCount: 3 },
+          { name: "Single-arm row", alt: "Seated cable row", previous: "24 kg × 10 × 3", target: "24–26 kg × 8–10", setCount: 3 },
+          { name: "Hamstring curl", alt: "Hamstring curl", previous: "36 kg × 12 × 3", target: "36–40 kg × 10–12", setCount: 3 }
+        ]
+      },
+      {
+        name: "Active Recovery",
+        type: "recovery",
+        focus: "Keep the streak easy: move, loosen up, stop there.",
+        duration: "20–30 min",
+        mealTheme: "Steady meals, no need to chase device burn",
+        adaptation: "Pick the least provocative mode and keep it conversational.",
+        exercises: [
+          { name: "Easy walk or easy bike", alt: "Easy walk or easy bike", previous: "25 min", target: "20–30 min", setCount: 2 },
+          { name: "Mobility / band work", alt: "Mobility / band work", previous: "10 min", target: "10 min", setCount: 2 }
+        ]
+      },
+      {
+        name: "Rest Day",
+        type: "rest",
+        isRest: true,
+        focus: "Rest is planned, not a failure.",
+        duration: "Optional easy walk",
+        mealTheme: "Normal plan, extra structure over perfection",
+        adaptation: "A logged rest day still counts as on-plan.",
+        exercises: [
+          { name: "Optional easy walk", alt: "Optional easy walk", previous: "22 min", target: "20–30 min", setCount: 1 },
+          { name: "Mobility if helpful", alt: "Mobility if helpful", previous: "8 min", target: "5–10 min", setCount: 1 }
+        ]
+      },
+      {
+        name: "Full Body Strength A",
+        type: "strength",
+        focus: "The other main strength day with familiar loads.",
+        duration: "45–55 min",
+        mealTheme: "Default higher-protein day",
+        adaptation: "If stiffness lingers, use controlled leg press instead of higher-demand knee work.",
+        exercises: [
+          { name: "Leg press", alt: "Partial-range leg press", previous: "95 kg × 8 × 3", target: "95–100 kg × 8", setCount: 3 },
+          { name: "Flat dumbbell press", alt: "Machine chest press", previous: "22 kg × 8 × 3", target: "22–24 kg × 8–10", setCount: 3 },
+          { name: "Seated row", alt: "Seated row", previous: "45 kg × 10 × 3", target: "45–47.5 kg × 8–10", setCount: 3 },
+          { name: "Romanian deadlift", alt: "Romanian deadlift", previous: "60 kg × 10 × 3", target: "60–65 kg × 8–10", setCount: 3 }
+        ]
+      },
+      {
+        name: "Zone 2 Cardio + Mobility",
+        type: "cardio",
+        focus: "A simple imported-data day with almost no typing.",
+        duration: "40 min + 10 min",
+        mealTheme: "Normal intake, protein still first",
+        adaptation: "Use the smoothest modality and skip hard starts if the knee is grumpy.",
+        exercises: [
+          { name: "Bike / row / incline walk", alt: "Easy bike spin", previous: "39 min steady", target: "40 min zone 2", setCount: 2 },
+          { name: "Mobility flow", alt: "Mobility flow", previous: "10 min", target: "10 min", setCount: 2 }
+        ]
+      }
+    ];
+
+    const MEAL_LIBRARY = {
+      breakfast: {
+        label: "Breakfast",
+        planned: { id: "breakfast-planned", name: "Whey + fruit + Greek yogurt bowl", calories: 390, protein: 35, carbs: 34, fat: 9, note: "Default fast breakfast." },
+        recent: [
+          { id: "breakfast-oats", name: "Overnight oats + whey", calories: 430, protein: 33, carbs: 49, fat: 11, note: "Recent repeat." },
+          { id: "breakfast-eggs", name: "2 eggs + toast + fruit", calories: 410, protein: 30, carbs: 35, fat: 14, note: "Recent quick option." }
+        ]
+      },
+      lunch: {
+        label: "Lunch",
+        planned: { id: "lunch-planned", name: "Tofu dal bowl + curd", calories: 620, protein: 41, carbs: 64, fat: 18, note: "Planned higher-protein lunch." },
+        recent: [
+          { id: "lunch-wrap", name: "Soya wrap + salad", calories: 590, protein: 37, carbs: 58, fat: 16, note: "Recent grab-and-go." },
+          { id: "lunch-eggs", name: "Egg curry + rice", calories: 650, protein: 39, carbs: 69, fat: 20, note: "Recent comfort option." }
+        ]
+      },
+      dinner: {
+        label: "Dinner",
+        planned: { id: "dinner-planned", name: "Paneer / tofu stir-fry + rice", calories: 910, protein: 54, carbs: 86, fat: 34, note: "Planned bigger evening meal." },
+        recent: [
+          { id: "dinner-rajma", name: "Rajma rice + curd", calories: 760, protein: 30, carbs: 101, fat: 18, note: "Recent lighter dinner." },
+          { id: "dinner-chilla", name: "Moong chilla + paneer filling", calories: 680, protein: 38, carbs: 56, fat: 24, note: "Recent higher-protein option." }
+        ]
+      }
+    };
+
+    const SYNC_PRESETS = [
+      {
+        steps: 8420,
+        distanceKm: 6.4,
+        activeCalories: 524,
+        sleepHours: 7.1,
+        weightKg: 84.2,
+        restingHr: 58,
+        readiness: 72,
+        hrv: 39,
+        activities: [
+          { name: "Morning walk", start: "6:42 AM", durationMin: 42, distanceKm: 3.9, activeCalories: 214 },
+          { name: "Strength training", start: "7:10 PM", durationMin: 48, distanceKm: null, activeCalories: 310 }
+        ]
+      },
+      {
+        steps: 9260,
+        distanceKm: 6.9,
+        activeCalories: 608,
+        sleepHours: 7.5,
+        weightKg: 84.1,
+        restingHr: 57,
+        readiness: 79,
+        hrv: 45,
+        activities: [
+          { name: "Zone 2 ride", start: "6:18 PM", durationMin: 44, distanceKm: 15.2, activeCalories: 402 },
+          { name: "Mobility", start: "7:08 PM", durationMin: 12, distanceKm: null, activeCalories: 36 }
+        ]
+      },
+      {
+        steps: 10420,
+        distanceKm: 7.8,
+        activeCalories: 691,
+        sleepHours: 6.8,
+        weightKg: null,
+        restingHr: 60,
+        readiness: 63,
+        hrv: 36,
+        activities: [
+          { name: "Evening walk", start: "8:10 PM", durationMin: 32, distanceKm: 2.7, activeCalories: 176 }
+        ]
+      }
+    ];
+
+    const SYNC_STATUS_PRESETS = [
+      { state: "success", lastSyncMinutesAgo: 18, lastErrorMinutesAgo: null, lastError: "" },
+      { state: "stale", lastSyncMinutesAgo: 440, lastErrorMinutesAgo: null, lastError: "" },
+      { state: "error", lastSyncMinutesAgo: 860, lastErrorMinutesAgo: 24, lastError: "Garmin data refresh failed. Showing the last successful snapshot." }
+    ];
+
+    const WEIGHT_SERIES = [85.8, 85.7, 85.6, null, 85.3, 85.2, 85.1, 85.0, 84.9, null, 84.8, 84.7, 84.7, 84.6];
+    const COMPLETENESS_SERIES = [60, 72, 68, 56, 76, 82, 88, 91, 74, 62, 86, 84, 79, 74];
+    const ADHERENCE_SERIES = [64, 70, 68, 61, 76, 82, 90, 92, 80, 75, 86, 83, 78, 72];
+    const GARMIN_SERIES = [0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1];
+    const REST_INDEXES = new Set([6, 11]);
+
+    const STATE = {
+      selectedTab: "today",
+      selectedDate: todayKey(),
+      rotationAnchor: todayKey(),
+      history: buildHistory(todayKey()),
+      dayStates: {},
+      syncPresetIndex: 0,
+      ui: {
+        openPanels: []
+      }
+    };
+
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function todayKey() {
+      const now = new Date();
+      const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function parseDateKey(dateKey) {
+      return new Date(dateKey + "T00:00:00");
+    }
+
+    function toLocalKey(date) {
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function addDays(dateKey, days) {
+      const date = parseDateKey(dateKey);
+      date.setDate(date.getDate() + days);
+      return toLocalKey(date);
+    }
+
+    function daysBetween(fromKey, toKey) {
+      return Math.round((parseDateKey(toKey) - parseDateKey(fromKey)) / DAY_MS);
+    }
+
+    function roundOne(value) {
+      return Math.round(value * 10) / 10;
+    }
+
+    function average(values) {
+      const usable = values.filter((value) => typeof value === "number" && Number.isFinite(value));
+      if (!usable.length) {
+        return null;
+      }
+      return usable.reduce((sum, value) => sum + value, 0) / usable.length;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function positiveMod(value, divisor) {
+      return ((value % divisor) + divisor) % divisor;
+    }
+
+    function formatDay(dateKey, options) {
+      return parseDateKey(dateKey).toLocaleDateString(undefined, options || {
+        weekday: "short",
+        month: "short",
+        day: "numeric"
+      });
+    }
+
+    function formatShortDay(dateKey) {
+      return formatDay(dateKey, { month: "short", day: "numeric" });
+    }
+
+    function formatNumber(value) {
+      return new Intl.NumberFormat().format(value);
+    }
+
+    function formatMetric(metricKey, value) {
+      if (value === "" || value === null || value === undefined || !Number.isFinite(Number(value))) {
+        return "—";
+      }
+      if (metricKey === "sleepHours") {
+        return roundOne(value) + " h";
+      }
+      if (metricKey === "distanceKm") {
+        return roundOne(value) + " km";
+      }
+      if (metricKey === "activeCalories") {
+        return formatNumber(value) + " kcal";
+      }
+      if (metricKey === "restingHr") {
+        return formatNumber(value) + " bpm";
+      }
+      if (metricKey === "readiness") {
+        return formatNumber(value) + "/100";
+      }
+      if (metricKey === "hrv") {
+        return formatNumber(value) + " ms";
+      }
+      if (metricKey === "steps") {
+        return formatNumber(value);
+      }
+      return String(value);
+    }
+
+    function formatDateTime(isoString) {
+      if (!isoString) {
+        return "—";
+      }
+      return new Date(isoString).toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function labelSource(source) {
+      const labels = {
+        planned: "Planned",
+        recent: "Recent",
+        manual: "Manual",
+        imported: "Imported",
+        estimated: "Estimated",
+        rest: "Rest day"
+      };
+      return labels[source] || source;
+    }
+
+    function buildHistory(anchorDate) {
+      const startTarget = 85.9;
+      return WEIGHT_SERIES.map((weight, index) => {
+        const dateKey = addDays(anchorDate, index - (WEIGHT_SERIES.length - 1));
+        return {
+          dateKey,
+          weight,
+          targetWeight: roundOne(startTarget - index * 0.09),
+          completeness: COMPLETENESS_SERIES[index],
+          adherence: ADHERENCE_SERIES[index],
+          hasGarmin: Boolean(GARMIN_SERIES[index]),
+          restDay: REST_INDEXES.has(index)
+        };
+      });
+    }
+
+    function getPlan(dateKey) {
+      const offset = positiveMod(daysBetween(STATE.rotationAnchor, dateKey), PLAN_ROTATION.length);
+      return PLAN_ROTATION[offset];
+    }
+
+    function createMealState(slotKey, seed) {
+      const slot = MEAL_LIBRARY[slotKey];
+      if (seed === "planned") {
+        return { choice: clone(slot.planned), source: "planned" };
+      }
+      if (typeof seed === "number" && slot.recent[seed]) {
+        return { choice: clone(slot.recent[seed]), source: "recent" };
+      }
+      return { choice: null, source: "" };
+    }
+
+    function createWorkoutState(plan, dateKey) {
+      return {
+        status: dateKey < todayKey() ? "complete" : "pending",
+        adapted: false,
+        exercises: plan.exercises.map((exercise) => ({
+          sets: Array.from({ length: exercise.setCount }, () => ({ load: "", reps: "", done: false }))
+        }))
+      };
+    }
+
+    function getHistoryEntry(dateKey) {
+      return STATE.history.find((entry) => entry.dateKey === dateKey) || null;
+    }
+
+    function getSeededPreset(dateKey) {
+      const offset = positiveMod(daysBetween(todayKey(), dateKey), SYNC_PRESETS.length);
+      return clone(SYNC_PRESETS[offset]);
+    }
+
+    function createEmptyGarminManual() {
+      return {
+        steps: "",
+        activeCalories: "",
+        sleepHours: "",
+        weightKg: "",
+        activities: ""
+      };
+    }
+
+    function minutesAgoIso(minutesAgo) {
+      return new Date(Date.now() - minutesAgo * 60000).toISOString();
+    }
+
+    function getSeededSyncMeta(dateKey) {
+      const offset = positiveMod(daysBetween(todayKey(), dateKey), SYNC_STATUS_PRESETS.length);
+      const preset = SYNC_STATUS_PRESETS[offset];
+      return {
+        syncState: preset.state,
+        lastSyncAt: minutesAgoIso(preset.lastSyncMinutesAgo),
+        lastErrorAt: preset.lastErrorMinutesAgo === null ? "" : minutesAgoIso(preset.lastErrorMinutesAgo),
+        lastError: preset.lastError
+      };
+    }
+
+    function buildDayState(dateKey) {
+      const plan = getPlan(dateKey);
+      const historyEntry = getHistoryEntry(dateKey);
+      const inPast = dateKey < todayKey();
+      const isToday = dateKey === todayKey();
+      const syncMeta = getSeededSyncMeta(dateKey);
+
+      const state = {
+        dateKey,
+        weightKg: historyEntry && typeof historyEntry.weight === "number"
+          ? historyEntry.weight
+          : (getSeededPreset(dateKey).weightKg || (isToday ? 84.6 : "")),
+        garmin: {
+          imported: getSeededPreset(dateKey),
+          manual: createEmptyGarminManual(),
+          syncState: syncMeta.syncState,
+          lastSyncAt: syncMeta.lastSyncAt,
+          lastErrorAt: syncMeta.lastErrorAt,
+          lastError: syncMeta.lastError
+        },
+        meals: {
+          breakfast: createMealState("breakfast", "planned"),
+          lunch: createMealState("lunch", inPast ? 0 : null),
+          dinner: createMealState("dinner", inPast ? "planned" : null)
+        },
+        recovery: {
+          hunger: isToday ? 3 : (inPast ? 2 : ""),
+          knee: plan.type === "strength" ? "Stiff" : "Good",
+          waistCm: ""
+        },
+        workout: createWorkoutState(plan, dateKey)
+      };
+
+      if (plan.isRest && inPast) {
+        state.workout.status = "complete";
+      }
+
+      if (inPast && plan.type === "strength") {
+        state.workout.exercises.forEach((exercise) => {
+          exercise.sets.forEach((set, index) => {
+            set.load = index === 0 ? "Top" : "";
+            set.reps = index === 0 ? "Logged" : "";
+            set.done = true;
+          });
+        });
+      }
+
+      return state;
+    }
+
+    function getDayState(dateKey) {
+      if (!STATE.dayStates[dateKey]) {
+        STATE.dayStates[dateKey] = buildDayState(dateKey);
+      }
+      return STATE.dayStates[dateKey];
+    }
+
+    function getDisplayMetric(dayState, metricKey) {
+      const manualValue = dayState.garmin.manual[metricKey];
+      if (manualValue !== "" && manualValue !== null && manualValue !== undefined) {
+        return {
+          value: Number(manualValue),
+          source: "manual",
+          hint: "Manual review value on top of Garmin snapshot."
+        };
+      }
+
+      return {
+        value: dayState.garmin.imported[metricKey],
+        source: "imported",
+        hint: "Snapshot from the Garmin export sync."
+      };
+    }
+
+    function getDisplayWeight(dayState) {
+      const manualValue = dayState.garmin.manual.weightKg;
+      if (manualValue !== "" && manualValue !== null && manualValue !== undefined) {
+        return {
+          value: Number(manualValue),
+          source: "manual"
+        };
+      }
+
+      const importedWeight = dayState.garmin.imported.weightKg;
+      return {
+        value: typeof importedWeight === "number" ? importedWeight : dayState.weightKg,
+        source: typeof importedWeight === "number" ? "imported" : "manual"
+      };
+    }
+
+    function hasManualOverride(dayState) {
+      return GARMIN_METRICS.some((metric) => {
+        const value = dayState.garmin.manual[metric.key];
+        return value !== "" && value !== null && value !== undefined;
+      }) || dayState.garmin.manual.weightKg !== "" ||
+        Boolean(String(dayState.garmin.manual.activities || "").trim());
+    }
+
+    function countManualGarminOverrides(dayState) {
+      return GARMIN_METRICS.filter((metric) => {
+        const value = dayState.garmin.manual[metric.key];
+        return value !== "" && value !== null && value !== undefined;
+      }).length +
+        (dayState.garmin.manual.weightKg !== "" ? 1 : 0) +
+        (String(dayState.garmin.manual.activities || "").trim() ? 1 : 0);
+    }
+
+    function hasGarminCoverage(dayState) {
+      const hasAllMetrics = GARMIN_METRICS.every((metricConfig) => {
+        const metric = getDisplayMetric(dayState, metricConfig.key);
+        return typeof metric.value === "number" && Number.isFinite(metric.value);
+      });
+      return hasAllMetrics && Array.isArray(dayState.garmin.imported.activities);
+    }
+
+    function getMealTotals(dayState) {
+      const choices = Object.values(dayState.meals).map((meal) => meal.choice).filter(Boolean);
+      return {
+        count: choices.length,
+        calories: choices.reduce((sum, meal) => sum + Number(meal.calories || 0), 0),
+        protein: choices.reduce((sum, meal) => sum + Number(meal.protein || 0), 0)
+      };
+    }
+
+    function getSetCompletion(dayState) {
+      const sets = dayState.workout.exercises.flatMap((exercise) => exercise.sets);
+      const doneCount = sets.filter((set) => set.done).length;
+      return {
+        total: sets.length,
+        done: doneCount
+      };
+    }
+
+    function computeCompleteness(dayState, dateKey) {
+      const plan = getPlan(dateKey);
+      const weightScore = dayState.weightKg ? 1 : 0;
+      const garminScore = hasGarminCoverage(dayState) ? 1 : 0;
+      const mealScore = getMealTotals(dayState).count / 3;
+      const workoutScore = plan.isRest
+        ? (dayState.workout.status === "complete" ? 1 : 0.8)
+        : (dayState.workout.status === "complete" ? 1 : 0);
+      const recoveryScore = ((dayState.recovery.hunger !== "" ? 0.5 : 0) + (dayState.recovery.knee ? 0.5 : 0));
+      return Math.round(((weightScore + garminScore + mealScore + workoutScore + recoveryScore) / 5) * 100);
+    }
+
+    function computeAdherence(dayState, dateKey) {
+      const plan = getPlan(dateKey);
+      const meals = Object.values(dayState.meals).filter((meal) => meal.choice);
+      const mealScore = meals.length
+        ? average(meals.map((meal) => {
+          if (meal.source === "planned") {
+            return 1;
+          }
+          if (meal.source === "recent") {
+            return 0.87;
+          }
+          if (meal.source === "manual") {
+            return 0.78;
+          }
+          return 0.6;
+        }))
+        : 0.55;
+
+      const workoutScore = plan.isRest
+        ? 1
+        : (dayState.workout.status === "complete"
+          ? 1
+          : (dayState.workout.adapted ? 0.82 : 0.58));
+
+      const recoveryScore = dayState.recovery.knee === "Painful"
+        ? (dayState.workout.adapted ? 0.9 : 0.68)
+        : (dayState.recovery.knee === "Stiff"
+          ? (dayState.workout.adapted || dayState.workout.status === "complete" ? 0.92 : 0.75)
+          : 0.95);
+
+      return Math.round(((mealScore + workoutScore + recoveryScore) / 3) * 100);
+    }
+
+    function syncHistoryFromDay(dateKey) {
+      const historyIndex = STATE.history.findIndex((entry) => entry.dateKey === dateKey);
+      if (historyIndex === -1) {
+        return;
+      }
+
+      const dayState = getDayState(dateKey);
+      STATE.history[historyIndex] = {
+        ...STATE.history[historyIndex],
+        weight: dayState.weightKg === "" ? null : roundOne(Number(dayState.weightKg)),
+        completeness: computeCompleteness(dayState, dateKey),
+        adherence: computeAdherence(dayState, dateKey),
+        hasGarmin: hasGarminCoverage(dayState),
+        restDay: Boolean(getPlan(dateKey).isRest)
+      };
+    }
+
+    function buildRollingSeries() {
+      return STATE.history.map((entry, index) => {
+        const windowEntries = STATE.history.slice(Math.max(0, index - 6), index + 1);
+        return {
+          dateKey: entry.dateKey,
+          actual: average(windowEntries.map((item) => item.weight)),
+          target: average(windowEntries.map((item) => item.targetWeight))
+        };
+      });
+    }
+
+    function getProgressSummary() {
+      const windowEntries = STATE.history.slice(-14);
+      const rollingSeries = buildRollingSeries();
+      const latestActual = [...rollingSeries].reverse().find((entry) => typeof entry.actual === "number");
+      const latestTarget = [...rollingSeries].reverse().find((entry) => typeof entry.target === "number");
+      const weighIns = windowEntries.filter((entry) => typeof entry.weight === "number").length;
+      const garminDays = windowEntries.filter((entry) => entry.hasGarmin).length;
+      const completeness = Math.round(average(windowEntries.map((entry) => entry.completeness)) || 0);
+      const adherence = Math.round(average(windowEntries.map((entry) => entry.adherence)) || 0);
+      const confidenceScore = Math.round((weighIns / windowEntries.length) * 55 + (garminDays / windowEntries.length) * 45);
+
+      return {
+        rollingSeries,
+        latestActual: latestActual ? roundOne(latestActual.actual) : null,
+        latestTarget: latestTarget ? roundOne(latestTarget.target) : null,
+        delta: latestActual && latestTarget ? roundOne(latestActual.actual - latestTarget.target) : null,
+        completeness,
+        adherence,
+        weighIns,
+        garminDays,
+        confidenceScore,
+        confidenceLabel: confidenceScore >= 80 ? "High" : (confidenceScore >= 62 ? "Medium" : "Low"),
+        latestRest: [...windowEntries].reverse().find((entry) => entry.restDay) || null
+      };
+    }
+
+    function formatTimeAgo(isoString) {
+      if (!isoString) {
+        return "—";
+      }
+      const diffMs = Math.max(0, Date.now() - new Date(isoString).getTime());
+      const minutes = Math.round(diffMs / 60000);
+      if (minutes < 60) {
+        return minutes + "m ago";
+      }
+      const hours = Math.round(minutes / 60);
+      if (hours < 24) {
+        return hours + "h ago";
+      }
+      const days = Math.round(hours / 24);
+      return days + "d ago";
+    }
+
+    function getGarminSyncStatus(dayState) {
+      if (dayState.garmin.syncState === "error") {
+        return {
+          tone: "danger",
+          label: "Sync error",
+          shortLabel: "Error",
+          detail: "Garmin data could not be refreshed. The last available snapshot is still shown."
+        };
+      }
+
+      if (dayState.garmin.syncState === "stale") {
+        return {
+          tone: "warn",
+          label: "Stale snapshot",
+          shortLabel: "Stale",
+          detail: "Garmin data may be out of date. The last available snapshot is still shown."
+        };
+      }
+
+      return {
+        tone: "success",
+        label: "Up to date",
+        shortLabel: `Synced ${formatTimeAgo(dayState.garmin.lastSyncAt)}`,
+        detail: "Latest available Garmin snapshot is shown."
+      };
+    }
+
+    function getDailySummary(dateKey) {
+      const dayState = getDayState(dateKey);
+      const plan = getPlan(dateKey);
+      const totals = getMealTotals(dayState);
+      const completeness = computeCompleteness(dayState, dateKey);
+      const adherence = computeAdherence(dayState, dateKey);
+      const setCompletion = getSetCompletion(dayState);
+
+      const flowItems = [
+        {
+          id: "flow-meals",
+          title: "Meals to log",
+          detail: totals.count >= 2
+            ? `${totals.count}/3 meals chosen. Detailed nutrition stays optional.`
+            : `${3 - totals.count} meal slots still need a quick choice.`,
+          complete: totals.count >= 2,
+          action: "Log",
+          jump: "#mealsSection"
+        },
+        {
+          id: "flow-workout",
+          title: plan.isRest ? "Rest day" : "Workout",
+          detail: plan.isRest
+            ? (dayState.workout.status === "complete"
+              ? "Rest day logged as on-plan."
+              : "Log the rest day; it still counts as adherence.")
+            : (dayState.workout.status === "complete"
+              ? `${plan.name} marked complete${setCompletion.done ? ` · ${setCompletion.done}/${setCompletion.total} sets checked` : ""}.`
+              : `${plan.name} still needs a one-tap finish or a knee-safe adaptation.`),
+          complete: plan.isRest ? dayState.workout.status === "complete" : dayState.workout.status === "complete",
+          action: "Open",
+          jump: "#workoutSection"
+        },
+        {
+          id: "flow-recovery",
+          title: "Recovery check",
+          detail: `Hunger ${dayState.recovery.hunger || "—"} · Knee ${dayState.recovery.knee || "—"} · Waist is weekly and optional.`,
+          complete: dayState.recovery.hunger !== "" && Boolean(dayState.recovery.knee),
+          action: "Open",
+          jump: "#recoverySection"
+        }
+      ];
+
+      return {
+        completeness,
+        adherence,
+        attentionCount: flowItems.filter((item) => !item.complete).length,
+        flowItems
+      };
+    }
+
+    function renderSourceBadge(source, overrideText) {
+      return `<span class="source-badge ${source}">${escapeHtml(overrideText || labelSource(source))}</span>`;
+    }
+
+    function renderSyncBadge(syncStatus) {
+      return `<span class="tag ${syncStatus.tone}">${escapeHtml(syncStatus.label)}</span>`;
+    }
+
+    function renderHeader() {
+      const dateKey = STATE.selectedDate;
+      const dayState = getDayState(dateKey);
+      const summary = getDailySummary(dateKey);
+      const manual = hasManualOverride(dayState);
+      const isToday = dateKey === todayKey();
+      const syncStatus = getGarminSyncStatus(dayState);
+
+      document.getElementById("headerMeta").textContent = isToday
+        ? "Today-first check-in mockup with Garmin data shown only where it reduces manual entry. Production files and stored tracker data stay untouched."
+        : `Previewing ${formatDay(dateKey)} with representative mock data only.`;
+      document.getElementById("headerDate").textContent = (isToday ? "Today · " : "Preview · ") + formatDay(dateKey);
+      document.getElementById("headerAttention").textContent = `${summary.attentionCount} item${summary.attentionCount === 1 ? "" : "s"} left`;
+      document.getElementById("headerSync").textContent = manual
+        ? `${syncStatus.shortLabel} · manual`
+        : syncStatus.shortLabel;
+    }
+
+    function renderTodayPanel() {
+      const dateKey = STATE.selectedDate;
+      const dayState = getDayState(dateKey);
+      const plan = getPlan(dateKey);
+      const summary = getDailySummary(dateKey);
+      const totals = getMealTotals(dayState);
+      const setCompletion = getSetCompletion(dayState);
+      const syncStatus = getGarminSyncStatus(dayState);
+      const todayPanel = document.getElementById("todayPanel");
+
+      todayPanel.innerHTML = `
+        <div class="today-layout">
+          <div class="stack">
+            <section class="card" id="flowCard">
+              <div class="card-header">
+                <div class="card-copy">
+                  <h2>30-second check-in</h2>
+                  <p>Only the few things needing attention stay up front.</p>
+                </div>
+                ${summary.attentionCount ? `<span class="tag warn">${summary.attentionCount} left</span>` : `<span class="tag success">Ready</span>`}
+              </div>
+
+              <div class="quick-weight">
+                <span class="field-label">Morning weight</span>
+                <div class="weight-row">
+                  <label class="sr-only" for="weightKg">Morning weight in kilograms</label>
+                  <input id="weightKg" type="number" min="40" max="200" step="0.1" value="${escapeHtml(getDisplayWeight(dayState).value ?? "")}">
+                  <span class="suffix">kg</span>
+                  ${renderSourceBadge(getDisplayWeight(dayState).source)}
+                </div>
+                <p class="footnote">Imported from Garmin when available; edit inline to correct it.</p>
+              </div>
+
+              <ul class="flow-list">
+                ${summary.flowItems.map((item) => `
+                  <li class="flow-item ${item.complete ? "complete" : "pending"}">
+                    <div>
+                      <strong>${escapeHtml(item.title)}</strong>
+                      <p>${escapeHtml(item.detail)}</p>
+                    </div>
+                    <button type="button" class="summary-link" data-jump="${escapeHtml(item.jump)}">${escapeHtml(item.action)}</button>
+                  </li>
+                `).join("")}
+              </ul>
+
+              <div class="score-row">
+                <div class="mini-stat">
+                  <span class="small-label">Completeness</span>
+                  <strong>${summary.completeness}%</strong>
+                  <p>How much of the day is actually captured.</p>
+                </div>
+                <div class="mini-stat">
+                  <span class="small-label">On-plan</span>
+                  <strong>${summary.adherence}%</strong>
+                  <p>Rest and approved adaptations still count.</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="card" id="mealsSection">
+              <div class="card-header">
+                <div class="card-copy">
+                  <h2>Meals</h2>
+                  <p>Quick plan or recent choices first; details only if needed.</p>
+                </div>
+                <div>
+                  <span class="tag primary">${totals.count}/3 chosen</span>
+                </div>
+              </div>
+
+              <div class="macro-row" aria-label="Meal totals">
+                <span class="macro-pill">${formatNumber(totals.calories)} kcal logged</span>
+                <span class="macro-pill">${formatNumber(Math.round(totals.protein))} g protein</span>
+                <span class="macro-pill">Plan ${TARGETS.calories} kcal / ${TARGETS.protein} g</span>
+              </div>
+              <p class="footnote" style="margin-top: 10px;">
+                Daily balance is logged food minus estimated expenditure (resting needs + active calories).
+                Garmin total calories are not used because meals are tracked here.
+              </p>
+
+              <div class="meal-list">
+                ${Object.keys(MEAL_LIBRARY).map((slotKey) => renderMealSlot(slotKey, dayState.meals[slotKey])).join("")}
+              </div>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section class="card garmin-card" id="garminSection">
+              <div class="card-header">
+                <div class="card-copy">
+                  <h2>Garmin data</h2>
+                  <p>Imported values reduce manual entry; you can correct them inline.</p>
+                </div>
+                ${renderSyncBadge(syncStatus)}
+              </div>
+
+              <div class="button-row">
+                <button type="button" class="primary-button" data-sync="garmin">Sync Garmin</button>
+                <button type="button" class="ghost-button" data-jump="#manualOverrides">Manual override path</button>
+              </div>
+
+              <div class="inline-note ${syncStatus.tone}">
+                <strong>${escapeHtml(syncStatus.label)}</strong>
+                <span> · Last sync ${escapeHtml(formatDateTime(dayState.garmin.lastSyncAt))}</span>
+              </div>
+
+              <div class="metric-grid" style="margin-top: 14px;">
+                ${GARMIN_METRICS.map((metric) => renderMetricCard(metric.label, metric.key, dayState)).join("")}
+              </div>
+
+              <div style="margin-top: 14px;">
+                <div class="card-header">
+                  <div class="card-copy">
+                    <h3>Activities</h3>
+                    <p>Export-derived sessions for the selected day.</p>
+                  </div>
+                  ${renderSourceBadge("imported")}
+                </div>
+
+                ${dayState.garmin.imported.activities.filter((activity) => !/strength/i.test(activity.name)).length
+                  ? `<div class="activity-list">
+                      ${dayState.garmin.imported.activities.filter((activity) => !/strength/i.test(activity.name)).map((activity) => `
+                        <article class="activity-item">
+                          <div class="activity-meta">
+                            <strong>${escapeHtml(activity.name)}</strong>
+                            <p>${escapeHtml(activity.start)}</p>
+                          </div>
+                          <div class="activity-stats">
+                            <span class="activity-stat">${escapeHtml(formatNumber(activity.durationMin))} min</span>
+                            ${typeof activity.distanceKm === "number" ? `<span class="activity-stat">${escapeHtml(roundOne(activity.distanceKm))} km</span>` : ""}
+                            <span class="activity-stat">${escapeHtml(formatNumber(activity.activeCalories))} active kcal</span>
+                          </div>
+                        </article>
+                      `).join("")}
+                    </div>`
+                  : `<div class="inline-note success">No export-derived activities for this day. Steps, sleep, and recovery fields can still sync.</div>`}
+
+                ${String(dayState.garmin.manual.activities || "").trim()
+                  ? `<div class="inline-note warn">${renderSourceBadge("manual", "Manual note")} ${escapeHtml(String(dayState.garmin.manual.activities).trim())}</div>`
+                  : ""}
+
+                <p class="footnote" style="margin-top: 12px;">Active calories are contextual and are not automatic eat-back targets. Food intake is logged in Meals.</p>
+              </div>
+
+              <details class="disclosure" id="manualOverrides" data-panel-id="manual-overrides">
+                <summary>Manual override path</summary>
+                <div class="disclosure-body">
+                  <form id="manualOverrideForm" class="manual-form">
+                    <div class="input-grid">
+                      ${GARMIN_METRICS.map((metric) => renderOverrideField(metric.label, metric.key, dayState.garmin.manual[metric.key], metric.step)).join("")}
+                    </div>
+                    <label>
+                      <span class="field-label">Activities summary</span>
+                      <textarea name="activities">${escapeHtml(dayState.garmin.manual.activities)}</textarea>
+                    </label>
+                    <div class="button-row">
+                      <button type="submit" class="primary-button">Apply overrides</button>
+                      <button type="button" class="ghost-button" data-clear-manual="true">Return to Garmin snapshot</button>
+                    </div>
+                    <p class="footnote">Overrides are just for this mockup review and sit on top of the imported snapshot.</p>
+                  </form>
+                </div>
+              </details>
+            </section>
+
+            <section class="card" id="workoutSection">
+              <div class="card-header">
+                <div class="card-copy">
+                  <h2>Workout</h2>
+                  <p>${escapeHtml(plan.focus)} ${escapeHtml(plan.duration)}</p>
+                </div>
+                <div class="chip-row">
+                  ${renderSourceBadge("planned")}
+                  ${dayState.workout.adapted ? renderSourceBadge("manual", "Adapted") : ""}
+                  ${plan.isRest ? renderSourceBadge("rest") : ""}
+                </div>
+              </div>
+
+              ${plan.isRest
+                ? `<div class="inline-note success">Rest day is the plan today. Logging it as done counts toward adherence.</div>`
+                : ""}
+
+              ${dayState.garmin.imported.activities.filter((activity) => /strength/i.test(activity.name)).map((activity) => `
+                <div class="inline-note primary">
+                  ${renderSourceBadge("imported", "Garmin activity")}
+                  <strong>${escapeHtml(activity.name)}</strong> found for today:
+                  ${escapeHtml(formatNumber(activity.durationMin))} min.
+                  Confirm below to mark the planned workout complete.
+                </div>
+              `).join("")}
+
+              ${!plan.isRest && (dayState.recovery.knee === "Stiff" || dayState.recovery.knee === "Painful")
+                ? `<div class="inline-note warn">${escapeHtml(plan.adaptation)}</div>`
+                : ""}
+
+              <div class="exercise-list">
+                ${plan.exercises.map((exercise, index) => renderExerciseSummary(exercise, dayState, index)).join("")}
+              </div>
+
+              <div class="button-row" style="margin-top: 14px;">
+                ${!plan.isRest && !dayState.workout.adapted ? `<button type="button" class="secondary-button" data-workout-action="adapt">Use knee-safe version</button>` : ""}
+                ${dayState.workout.status === "complete"
+                  ? `<button type="button" class="ghost-button" data-workout-action="reset">Reset</button>`
+                  : `<button type="button" class="primary-button" data-workout-action="complete">${plan.isRest ? "Log rest day" : (dayState.workout.adapted ? "Done as adapted" : "Done as planned")}</button>`}
+              </div>
+
+              ${!plan.isRest
+                ? `<div class="inline-note primary">Previous loads are shown upfront. Expanded set logging stays optional: ${setCompletion.done}/${setCompletion.total} sets checked.</div>`
+                : ""}
+
+              <details class="disclosure" data-panel-id="workout-sets">
+                <summary>${plan.isRest ? "Optional recovery notes" : "Expanded set logging (optional)"}</summary>
+                <div class="disclosure-body">
+                  <div class="exercise-list">
+                    ${plan.exercises.map((exercise, exerciseIndex) => renderExerciseCard(exercise, dayState, exerciseIndex)).join("")}
+                  </div>
+                </div>
+              </details>
+            </section>
+
+            <section class="card" id="recoverySection">
+              <div class="card-header">
+                <div class="card-copy">
+                  <h2>Recovery and manual fields</h2>
+                  <p>Hunger and knee stay daily-fast. Waist stays weekly and optional.</p>
+                </div>
+                ${renderSourceBadge("manual")}
+              </div>
+
+              <div>
+                <span class="field-label">Hunger</span>
+                <div class="chip-group" role="group" aria-label="Hunger level">
+                  ${[1, 2, 3, 4, 5].map((value) => `
+                    <button type="button" class="chip-button" data-hunger="${value}" aria-pressed="${Number(dayState.recovery.hunger) === value}">
+                      ${value}
+                    </button>
+                  `).join("")}
+                </div>
+              </div>
+
+              <div style="margin-top: 14px;">
+                <span class="field-label">Knee status</span>
+                <div class="chip-group" role="group" aria-label="Knee status">
+                  ${["Good", "Stiff", "Painful"].map((label) => `
+                    <button type="button" class="chip-button ${label === "Painful" ? "is-danger" : ""}" data-knee="${escapeHtml(label)}" aria-pressed="${dayState.recovery.knee === label}">
+                      ${escapeHtml(label)}
+                    </button>
+                  `).join("")}
+                </div>
+              </div>
+
+              ${dayState.recovery.knee === "Painful"
+                ? `<div class="inline-note danger">Painful knee selected. The mockup keeps the adaptation path visible and steers the day toward lower-impact work.</div>`
+                : (dayState.recovery.knee === "Stiff"
+                  ? `<div class="inline-note warn">Stiff knee selected. A reduced-impact strength option is ready in the workout card.</div>`
+                  : `<div class="inline-note success">Good knee selected. The planned workout stays unchanged.</div>`)}
+
+              <details class="disclosure" data-panel-id="weekly-waist">
+                <summary>Weekly waist check (optional)</summary>
+                <div class="disclosure-body">
+                  <form id="waistForm" class="manual-form">
+                    <label>
+                      <span class="field-label">Waist (cm)</span>
+                      <input type="number" min="50" max="200" step="0.1" name="waistCm" value="${escapeHtml(dayState.recovery.waistCm)}">
+                    </label>
+                    <div class="button-row">
+                      <button type="submit" class="secondary-button">Save waist check</button>
+                    </div>
+                  </form>
+                </div>
+              </details>
+            </section>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMetricCard(label, metricKey, dayState) {
+      const metric = getDisplayMetric(dayState, metricKey);
+      const inlineEditor = metricKey === "steps"
+        ? `<label class="sr-only" for="inline-${metricKey}">Steps</label>
+           <input id="inline-${metricKey}" class="metric-inline-input" type="number" min="0" step="1"
+             data-garmin-inline="${metricKey}" value="${escapeHtml(metric.value ?? "")}">`
+        : `<strong>${escapeHtml(formatMetric(metricKey, metric.value))}</strong>`;
+      return `
+        <div class="metric-card">
+          <div class="metric-head">
+            <span class="metric-label">${escapeHtml(label)}</span>
+            ${renderSourceBadge(metric.source)}
+          </div>
+          ${inlineEditor}
+          <p>${escapeHtml(metric.hint)}</p>
+        </div>
+      `;
+    }
+
+    function renderOverrideField(label, name, value, step) {
+      return `
+        <label>
+          <span class="field-label">${escapeHtml(label)}</span>
+          <input type="number" name="${escapeHtml(name)}" step="${escapeHtml(step || "1")}" value="${escapeHtml(value)}">
+        </label>
+      `;
+    }
+
+    function renderMealSlot(slotKey, mealState) {
+      const slot = MEAL_LIBRARY[slotKey];
+      const current = mealState.choice || slot.planned;
+      const headerBadge = mealState.choice
+        ? renderSourceBadge(mealState.source)
+        : renderSourceBadge("planned", "Suggestion");
+
+      return `
+        <article class="meal-slot">
+          <div class="meal-head">
+            <div>
+              <h3>${escapeHtml(slot.label)}</h3>
+              <p>Planned: ${escapeHtml(slot.planned.name)}</p>
+            </div>
+            ${headerBadge}
+          </div>
+
+          <p class="meal-current">
+            ${mealState.choice ? `Logged: ${escapeHtml(mealState.choice.name)}` : "No meal chosen yet."}
+          </p>
+
+          <div class="quick-choice-row">
+            <button type="button" class="chip-button ${mealState.source === "planned" ? "active" : ""}" data-meal-choice="${slotKey}" data-source="planned">Use plan</button>
+            ${slot.recent.map((option, index) => `
+              <button
+                type="button"
+                class="chip-button ${mealState.source === "recent" && mealState.choice && mealState.choice.id === option.id ? "active" : ""}"
+                data-meal-choice="${slotKey}"
+                data-source="recent"
+                data-option-index="${index}">
+                ${escapeHtml(option.name)}
+              </button>
+            `).join("")}
+            <button type="button" class="chip-button" data-meal-clear="${slotKey}">Clear</button>
+          </div>
+
+          ${mealState.choice ? `
+            <div class="macro-row">
+              <span class="macro-pill">${formatNumber(mealState.choice.calories)} kcal</span>
+              <span class="macro-pill">${formatNumber(mealState.choice.protein)} g protein</span>
+              <span class="macro-pill">${formatNumber(mealState.choice.carbs)} g carbs</span>
+              <span class="macro-pill">${formatNumber(mealState.choice.fat)} g fat</span>
+            </div>
+          ` : ""}
+
+          <details class="disclosure" data-panel-id="meal-${slotKey}">
+            <summary>Nutrition + custom entry</summary>
+            <div class="disclosure-body">
+              <form class="meal-form" data-meal-form="${slotKey}">
+                <label>
+                  <span class="field-label">Meal name</span>
+                  <input type="text" name="name" value="${escapeHtml(current.name)}">
+                </label>
+                <div class="input-grid">
+                  <label>
+                    <span class="field-label">Calories</span>
+                    <input type="number" name="calories" min="0" step="1" value="${escapeHtml(current.calories)}">
+                  </label>
+                  <label>
+                    <span class="field-label">Protein (g)</span>
+                    <input type="number" name="protein" min="0" step="1" value="${escapeHtml(current.protein)}">
+                  </label>
+                  <label>
+                    <span class="field-label">Carbs (g)</span>
+                    <input type="number" name="carbs" min="0" step="1" value="${escapeHtml(current.carbs)}">
+                  </label>
+                  <label>
+                    <span class="field-label">Fat (g)</span>
+                    <input type="number" name="fat" min="0" step="1" value="${escapeHtml(current.fat)}">
+                  </label>
+                </div>
+                <label>
+                  <span class="field-label">Notes</span>
+                  <textarea name="note">${escapeHtml(current.note || "")}</textarea>
+                </label>
+                <div class="button-row">
+                  <button type="submit" class="secondary-button">Apply custom meal</button>
+                </div>
+              </form>
+            </div>
+          </details>
+        </article>
+      `;
+    }
+
+    function renderExerciseSummary(exercise, dayState, index) {
+      const adapted = dayState.workout.adapted;
+      const displayName = adapted ? exercise.alt : exercise.name;
+      return `
+        <div class="exercise-card">
+          <div class="exercise-top">
+            <div>
+              <h4>${escapeHtml(displayName)}</h4>
+              <p>Previous ${escapeHtml(exercise.previous)} · Planned ${escapeHtml(exercise.target)}</p>
+            </div>
+            ${adapted && exercise.alt !== exercise.name ? renderSourceBadge("manual", "Adapted") : renderSourceBadge("planned")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderExerciseCard(exercise, dayState, exerciseIndex) {
+      const adapted = dayState.workout.adapted;
+      const displayName = adapted ? exercise.alt : exercise.name;
+      const logState = dayState.workout.exercises[exerciseIndex];
+
+      return `
+        <div class="exercise-card">
+          <div class="exercise-top">
+            <div>
+              <h4>${escapeHtml(displayName)}</h4>
+              <p>Previous ${escapeHtml(exercise.previous)} · Planned ${escapeHtml(exercise.target)}</p>
+            </div>
+            <div class="exercise-badges">
+              ${renderSourceBadge("planned")}
+              ${renderSourceBadge("manual", "Set log")}
+            </div>
+          </div>
+
+          <div class="set-list">
+            ${logState.sets.map((set, setIndex) => `
+              <div class="set-row">
+                <span class="set-label">Set ${setIndex + 1}</span>
+                <label>
+                  <span class="small-label">Load</span>
+                  <input type="text" value="${escapeHtml(set.load)}" data-set-field="load" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}" aria-label="${escapeHtml(displayName)} set ${setIndex + 1} load">
+                </label>
+                <label>
+                  <span class="small-label">Reps</span>
+                  <input type="text" value="${escapeHtml(set.reps)}" data-set-field="reps" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}" aria-label="${escapeHtml(displayName)} set ${setIndex + 1} reps">
+                </label>
+                <label class="check-wrap">
+                  <input type="checkbox" ${set.done ? "checked" : ""} data-set-field="done" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}" aria-label="${escapeHtml(displayName)} set ${setIndex + 1} completed">
+                  Done
+                </label>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTrendChart() {
+      const series = buildRollingSeries().slice(-14);
+      const values = series.flatMap((entry) => [entry.actual, entry.target]).filter((value) => typeof value === "number");
+      const min = Math.min(...values) - 0.4;
+      const max = Math.max(...values) + 0.4;
+      const width = 360;
+      const height = 160;
+      const padding = { top: 16, right: 12, bottom: 20, left: 16 };
+      const innerWidth = width - padding.left - padding.right;
+      const innerHeight = height - padding.top - padding.bottom;
+
+      const x = (index) => padding.left + (innerWidth / (series.length - 1)) * index;
+      const y = (value) => padding.top + ((max - value) / (max - min || 1)) * innerHeight;
+
+      function buildPath(key) {
+        const points = series
+          .map((entry, index) => ({ value: entry[key], x: x(index), y: typeof entry[key] === "number" ? y(entry[key]) : null }))
+          .filter((point) => point.y !== null);
+        return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+      }
+
+      const actualPath = buildPath("actual");
+      const targetPath = buildPath("target");
+      const latestActual = [...series].reverse().find((entry) => typeof entry.actual === "number");
+      const latestTarget = [...series].reverse().find((entry) => typeof entry.target === "number");
+
+      return `
+        <div class="chart-shell">
+          <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Rolling weight trend versus target">
+            <line x1="${padding.left}" y1="${padding.top}" x2="${width - padding.right}" y2="${padding.top}" stroke="#e2e8f0" />
+            <line x1="${padding.left}" y1="${padding.top + innerHeight / 2}" x2="${width - padding.right}" y2="${padding.top + innerHeight / 2}" stroke="#e2e8f0" />
+            <line x1="${padding.left}" y1="${padding.top + innerHeight}" x2="${width - padding.right}" y2="${padding.top + innerHeight}" stroke="#e2e8f0" />
+            <path d="${targetPath}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 5"></path>
+            <path d="${actualPath}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round"></path>
+            ${latestTarget ? `<circle cx="${x(series.findIndex((entry) => entry.dateKey === latestTarget.dateKey)).toFixed(2)}" cy="${y(latestTarget.target).toFixed(2)}" r="3.5" fill="#94a3b8"></circle>` : ""}
+            ${latestActual ? `<circle cx="${x(series.findIndex((entry) => entry.dateKey === latestActual.dateKey)).toFixed(2)}" cy="${y(latestActual.actual).toFixed(2)}" r="4.5" fill="#2563eb"></circle>` : ""}
+          </svg>
+          <div class="axis-row">
+            <span>${escapeHtml(formatShortDay(series[0].dateKey))}</span>
+            <span>${escapeHtml(formatShortDay(series[Math.floor(series.length / 2)].dateKey))}</span>
+            <span>${escapeHtml(formatShortDay(series[series.length - 1].dateKey))}</span>
+          </div>
+          <div class="legend-row">
+            <span><span class="legend-dot" style="background:#2563eb;"></span>7-day rolling weight</span>
+            <span><span class="legend-dot" style="background:#94a3b8;"></span>Target trend</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProgressPanel() {
+      const progressPanel = document.getElementById("progressPanel");
+      const summary = getProgressSummary();
+      const deltaText = summary.delta === null
+        ? "Trend unavailable"
+        : (Math.abs(summary.delta) <= 0.2
+          ? `${Math.abs(summary.delta)} kg from target trend`
+          : (summary.delta > 0
+            ? `${summary.delta} kg above target trend`
+            : `${Math.abs(summary.delta)} kg below target trend`));
+
+      progressPanel.innerHTML = `
+        <div class="progress-layout">
+          <section class="card">
+            <div class="card-header">
+              <div class="card-copy">
+                <h2>Your progress</h2>
+                <p>Rolling trend is more useful than any single weigh-in.</p>
+              </div>
+              <span class="tag primary">${summary.latestActual !== null ? `${summary.latestActual} kg` : "No trend"}</span>
+            </div>
+            ${renderTrendChart()}
+            <div class="inline-note primary">
+              <strong>${escapeHtml(deltaText)}</strong>
+              <span> · The 7-day trend is the main signal; Garmin activity remains contextual.</span>
+            </div>
+            <div class="metric-grid" style="margin-top: 14px;">
+              <div class="metric-card">
+                <span class="metric-label">Latest trend</span>
+                <strong>${summary.latestActual !== null ? `${summary.latestActual} kg` : "—"}</strong>
+                <p>Rolling weight average.</p>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Target guide</span>
+                <strong>${summary.latestTarget !== null ? `${summary.latestTarget} kg` : "—"}</strong>
+                <p>Guide, not a daily pass/fail.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <div class="card-copy">
+                <h2>Can I trust this trend?</h2>
+                <p>${summary.weighIns}/14 weigh-ins and ${summary.garminDays}/14 Garmin-import days.</p>
+              </div>
+              ${renderSourceBadge("estimated", summary.confidenceLabel + " confidence")}
+            </div>
+
+            <div class="progress-bars">
+              <div>
+                <div class="bar-label"><span>Data completeness</span><span>${summary.completeness}%</span></div>
+                <div class="bar-track"><div class="bar-fill primary" style="width:${summary.completeness}%"></div></div>
+              </div>
+              <div>
+                <div class="bar-label"><span>Confidence</span><span>${summary.confidenceScore}%</span></div>
+                <div class="bar-track"><div class="bar-fill success" style="width:${summary.confidenceScore}%"></div></div>
+              </div>
+              <div>
+                <div class="bar-label"><span>On-plan behavior</span><span>${summary.adherence}%</span></div>
+                <div class="bar-track"><div class="bar-fill warn" style="width:${summary.adherence}%"></div></div>
+              </div>
+            </div>
+
+            <details class="disclosure" data-panel-id="progress-method">
+              <summary>How this is calculated</summary>
+              <div class="disclosure-body">
+                <p class="muted">Completeness measures how much of the day is captured. On-plan measures whether the plan or an approved adaptation was followed. Rest days count as valid plan days.</p>
+              </div>
+            </details>
+          </section>
+
+          <section class="card span-two">
+            <div class="card-header">
+              <div class="card-copy">
+                <h2>Recent days</h2>
+                <p>A compact view of trend data and plan follow-through.</p>
+              </div>
+            </div>
+
+            <div class="history-list">
+              ${STATE.history.slice(-7).reverse().map((entry) => `
+                <div class="history-row">
+                  <div>
+                    <strong>${escapeHtml(formatDay(entry.dateKey))}</strong>
+                    <p>${entry.restDay ? "Rest day" : "Training day"}${typeof entry.weight === "number" ? ` · ${entry.weight} kg` : ""}</p>
+                  </div>
+                  <div class="history-metric">
+                    <div class="bar-label"><span>Complete</span><span>${entry.completeness}%</span></div>
+                    <div class="bar-track"><div class="bar-fill primary" style="width:${entry.completeness}%"></div></div>
+                  </div>
+                  <div class="history-metric">
+                    <div class="bar-label"><span>On-plan</span><span>${entry.adherence}%</span></div>
+                    <div class="bar-track"><div class="bar-fill success" style="width:${entry.adherence}%"></div></div>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderPlanPanel() {
+      const planPanel = document.getElementById("planPanel");
+      const startDate = todayKey();
+      const todayPlan = getPlan(startDate);
+
+      planPanel.innerHTML = `
+        <div class="plan-layout">
+          <section class="card">
+            <div class="card-header">
+              <div class="card-copy">
+                <h2>What should I do next?</h2>
+                <p>Your next planned action, with the detail available when needed.</p>
+              </div>
+              ${todayPlan.isRest ? renderSourceBadge("rest") : renderSourceBadge("planned")}
+            </div>
+
+            <div class="inline-note ${todayPlan.isRest ? "success" : "primary"}">
+              <strong>${todayPlan.isRest ? "Rest and recover" : escapeHtml(todayPlan.name)}</strong>
+              <span> · ${escapeHtml(todayPlan.duration)}</span>
+            </div>
+
+            <p class="muted" style="margin-top: 12px;">${escapeHtml(todayPlan.focus)}</p>
+
+            ${todayPlan.isRest
+              ? `<div class="inline-note success">A rest day is part of the plan. Log it once today and move on.</div>`
+              : `<div class="exercise-list">
+                  ${todayPlan.exercises.slice(0, 3).map((exercise) => `
+                    <div class="exercise-card">
+                      <div class="exercise-top">
+                        <div>
+                          <h4>${escapeHtml(exercise.name)}</h4>
+                          <p>Planned ${escapeHtml(exercise.target)}</p>
+                        </div>
+                        ${renderSourceBadge("planned")}
+                      </div>
+                    </div>
+                  `).join("")}
+                </div>`}
+
+            <div class="button-row" style="margin-top: 14px;">
+              <button type="button" class="primary-button" data-preview-date="${escapeHtml(startDate)}">Open today's plan</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <div class="card-copy">
+                <h2>Targets</h2>
+                <p>The few numbers that guide daily choices.</p>
+              </div>
+            </div>
+
+            <div class="metric-grid">
+              <div class="metric-card">
+                <span class="metric-label">Food</span>
+                <strong>${TARGETS.calories} kcal</strong>
+                <p>Logged in Meals.</p>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Protein</span>
+                <strong>${TARGETS.protein} g</strong>
+                <p>Keep this prominent.</p>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Steps</span>
+                <strong>${formatNumber(TARGETS.steps)}</strong>
+                <p>Imported or edited inline.</p>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Sleep</span>
+                <strong>${TARGETS.sleep} h</strong>
+                <p>Recovery context.</p>
+              </div>
+            </div>
+
+            <details class="disclosure" data-panel-id="source-method">
+              <summary>About imported data</summary>
+              <div class="disclosure-body">
+                <p class="muted">Garmin values are shown with their source and can be corrected manually. Activity calories are approximate and are never automatic food credits.</p>
+              </div>
+            </details>
+          </section>
+
+          <section class="card span-two">
+            <div class="card-header">
+              <div class="card-copy">
+                <h2>Representative 7-day rotation starting today</h2>
+                <p>Preview any day without touching the production tracker.</p>
+              </div>
+            </div>
+
+            <div class="schedule-grid">
+              ${Array.from({ length: 7 }, (_, index) => {
+                const dateKey = addDays(startDate, index);
+                const plan = getPlan(dateKey);
+                return `
+                  <article class="schedule-item ${STATE.selectedDate === dateKey ? "selected" : ""}">
+                    <div class="schedule-head">
+                      <div>
+                        <h3>${escapeHtml(formatDay(dateKey))}</h3>
+                        <p>${escapeHtml(plan.name)}</p>
+                      </div>
+                      <div class="schedule-tags">
+                        ${renderSourceBadge("planned")}
+                        ${plan.isRest ? renderSourceBadge("rest") : ""}
+                      </div>
+                    </div>
+                    <p>${escapeHtml(plan.focus)}</p>
+                    <p><strong>${escapeHtml(plan.duration)}</strong> · ${escapeHtml(plan.mealTheme)}</p>
+                    <div class="button-row">
+                      <button type="button" class="secondary-button" data-preview-date="${escapeHtml(dateKey)}">Preview this day</button>
+                    </div>
+                  </article>
+                `;
+              }).join("")}
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function updateTabs() {
+      const tabs = {
+        today: document.getElementById("todayPanel"),
+        progress: document.getElementById("progressPanel"),
+        plan: document.getElementById("planPanel")
+      };
+
+      Object.entries(tabs).forEach(([key, panel]) => {
+        const isActive = STATE.selectedTab === key;
+        panel.classList.toggle("active", isActive);
+      });
+
+      document.querySelectorAll("[data-tab]").forEach((button) => {
+        const isActive = button.dataset.tab === STATE.selectedTab;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", String(isActive));
+      });
+    }
+
+    function captureOpenPanels() {
+      STATE.ui.openPanels = Array.from(document.querySelectorAll("details[data-panel-id][open]")).map((detail) => detail.dataset.panelId);
+    }
+
+    function restoreOpenPanels() {
+      STATE.ui.openPanels.forEach((panelId) => {
+        const detail = document.querySelector(`details[data-panel-id="${panelId}"]`);
+        if (detail) {
+          detail.open = true;
+        }
+      });
+    }
+
+    function announce(message) {
+      document.getElementById("announcer").textContent = message;
+    }
+
+    function render() {
+      captureOpenPanels();
+      renderHeader();
+      renderTodayPanel();
+      renderProgressPanel();
+      renderPlanPanel();
+      updateTabs();
+      restoreOpenPanels();
+    }
+
+    function changeDate(delta) {
+      STATE.selectedDate = delta === 0 ? todayKey() : addDays(STATE.selectedDate, delta);
+      getDayState(STATE.selectedDate);
+      syncHistoryFromDay(STATE.selectedDate);
+      render();
+      announce(`Showing ${formatDay(STATE.selectedDate)}.`);
+    }
+
+    document.addEventListener("click", (event) => {
+      const tabButton = event.target.closest("[data-tab]");
+      if (tabButton) {
+        STATE.selectedTab = tabButton.dataset.tab;
+        render();
+        return;
+      }
+
+      const dayNav = event.target.closest("[data-day-nav]");
+      if (dayNav) {
+        changeDate(Number(dayNav.dataset.dayNav));
+        return;
+      }
+
+      const jumpButton = event.target.closest("[data-jump]");
+      if (jumpButton) {
+        const target = document.querySelector(jumpButton.dataset.jump);
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        return;
+      }
+
+      const syncButton = event.target.closest("[data-sync='garmin']");
+      if (syncButton) {
+        const dayState = getDayState(STATE.selectedDate);
+        STATE.syncPresetIndex = (STATE.syncPresetIndex + 1) % SYNC_PRESETS.length;
+        dayState.garmin.imported = clone(SYNC_PRESETS[STATE.syncPresetIndex]);
+        dayState.garmin.syncState = "success";
+        dayState.garmin.lastSyncAt = new Date().toISOString();
+        dayState.garmin.lastErrorAt = "";
+        dayState.garmin.lastError = "";
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce("Garmin sync updated.");
+        return;
+      }
+
+      const clearManual = event.target.closest("[data-clear-manual]");
+      if (clearManual) {
+        const dayState = getDayState(STATE.selectedDate);
+        dayState.garmin.manual = createEmptyGarminManual();
+        const importedWeight = dayState.garmin.imported.weightKg;
+        dayState.weightKg = typeof importedWeight === "number" ? importedWeight : "";
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce("Returned to Garmin snapshot values.");
+        return;
+      }
+
+      const mealChoice = event.target.closest("[data-meal-choice]");
+      if (mealChoice) {
+        const slotKey = mealChoice.dataset.mealChoice;
+        const source = mealChoice.dataset.source;
+        const slot = MEAL_LIBRARY[slotKey];
+        const dayState = getDayState(STATE.selectedDate);
+
+        if (source === "planned") {
+          dayState.meals[slotKey] = { choice: clone(slot.planned), source: "planned" };
+        } else {
+          const option = slot.recent[Number(mealChoice.dataset.optionIndex)];
+          dayState.meals[slotKey] = { choice: clone(option), source: "recent" };
+        }
+
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce(`${slot.label} updated.`);
+        return;
+      }
+
+      const mealClear = event.target.closest("[data-meal-clear]");
+      if (mealClear) {
+        const slotKey = mealClear.dataset.mealClear;
+        const dayState = getDayState(STATE.selectedDate);
+        dayState.meals[slotKey] = { choice: null, source: "" };
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce(`${MEAL_LIBRARY[slotKey].label} cleared.`);
+        return;
+      }
+
+      const workoutAction = event.target.closest("[data-workout-action]");
+      if (workoutAction) {
+        const action = workoutAction.dataset.workoutAction;
+        const dayState = getDayState(STATE.selectedDate);
+
+        if (action === "adapt") {
+          dayState.workout.adapted = true;
+        } else if (action === "complete") {
+          dayState.workout.status = "complete";
+        } else if (action === "reset") {
+          dayState.workout.status = "pending";
+          dayState.workout.adapted = false;
+        }
+
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce("Workout updated.");
+        return;
+      }
+
+      const hungerButton = event.target.closest("[data-hunger]");
+      if (hungerButton) {
+        const dayState = getDayState(STATE.selectedDate);
+        dayState.recovery.hunger = Number(hungerButton.dataset.hunger);
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce(`Hunger set to ${dayState.recovery.hunger}.`);
+        return;
+      }
+
+      const kneeButton = event.target.closest("[data-knee]");
+      if (kneeButton) {
+        const dayState = getDayState(STATE.selectedDate);
+        dayState.recovery.knee = kneeButton.dataset.knee;
+        if (dayState.recovery.knee === "Good" && dayState.workout.adapted && getPlan(STATE.selectedDate).type !== "strength") {
+          dayState.workout.adapted = false;
+        }
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce(`Knee status set to ${dayState.recovery.knee}.`);
+        return;
+      }
+
+      const previewButton = event.target.closest("[data-preview-date]");
+      if (previewButton) {
+        STATE.selectedDate = previewButton.dataset.previewDate;
+        STATE.selectedTab = "today";
+        getDayState(STATE.selectedDate);
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce(`Previewing ${formatDay(STATE.selectedDate)}.`);
+      }
+    });
+
+    document.addEventListener("submit", (event) => {
+      if (event.target.id === "manualOverrideForm") {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const dayState = getDayState(STATE.selectedDate);
+        GARMIN_METRICS.forEach((metric) => {
+          const metricKey = metric.key;
+          const raw = String(formData.get(metricKey) || "").trim();
+          dayState.garmin.manual[metricKey] = raw === "" ? "" : Number(raw);
+        });
+        dayState.garmin.manual.activities = String(formData.get("activities") || "").trim();
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce("Manual overrides applied.");
+        return;
+      }
+
+      const mealForm = event.target.closest("[data-meal-form]");
+      if (mealForm) {
+        event.preventDefault();
+        const slotKey = mealForm.dataset.mealForm;
+        const formData = new FormData(mealForm);
+        const choice = {
+          id: `${slotKey}-manual`,
+          name: String(formData.get("name") || "").trim() || `${MEAL_LIBRARY[slotKey].label} custom entry`,
+          calories: Number(formData.get("calories") || 0),
+          protein: Number(formData.get("protein") || 0),
+          carbs: Number(formData.get("carbs") || 0),
+          fat: Number(formData.get("fat") || 0),
+          note: String(formData.get("note") || "").trim()
+        };
+        const dayState = getDayState(STATE.selectedDate);
+        dayState.meals[slotKey] = { choice, source: "manual" };
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce(`${MEAL_LIBRARY[slotKey].label} saved as custom.`);
+        return;
+      }
+
+      if (event.target.id === "waistForm") {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const dayState = getDayState(STATE.selectedDate);
+        dayState.recovery.waistCm = String(formData.get("waistCm") || "").trim();
+        render();
+        announce("Weekly waist check updated.");
+      }
+    });
+
+    document.addEventListener("change", (event) => {
+      const inlineMetric = event.target.dataset.garminInline;
+      if (inlineMetric) {
+        const dayState = getDayState(STATE.selectedDate);
+        dayState.garmin.manual[inlineMetric] = event.target.value === "" ? "" : Number(event.target.value);
+        render();
+        announce(`${inlineMetric === "steps" ? "Steps" : inlineMetric} updated.`);
+        return;
+      }
+
+      if (event.target.id === "weightKg") {
+        const dayState = getDayState(STATE.selectedDate);
+        dayState.garmin.manual.weightKg = event.target.value === "" ? "" : Number(event.target.value);
+        dayState.weightKg = event.target.value === "" ? "" : Number(event.target.value);
+        syncHistoryFromDay(STATE.selectedDate);
+        render();
+        announce("Weight updated.");
+        return;
+      }
+
+      const setField = event.target.dataset.setField;
+      if (setField) {
+        const dayState = getDayState(STATE.selectedDate);
+        const exerciseIndex = Number(event.target.dataset.exerciseIndex);
+        const setIndex = Number(event.target.dataset.setIndex);
+        const set = dayState.workout.exercises[exerciseIndex].sets[setIndex];
+
+        if (setField === "done") {
+          set.done = event.target.checked;
+        } else {
+          set[setField] = event.target.value;
+        }
+
+        render();
+      }
+    });
+
+    getDayState(STATE.selectedDate);
+    syncHistoryFromDay(STATE.selectedDate);
+    render();
+  </script>
+</body>
+</html>
