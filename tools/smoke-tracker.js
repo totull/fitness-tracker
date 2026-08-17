@@ -163,6 +163,63 @@ function check(name, pass, detail) {
   });
   check('auto-pull applied data to the entry', String(steps) === '8000', `steps=${steps}`);
 
+  // A hand-edited field must lock out imports, and must be recoverable.
+  const override = await page.evaluate(async () => {
+    const out = {};
+    const rows = (v) => [{
+      user_id: 'u1',
+      updated_at: '2026-08-17T04:00:00Z',
+      payload: { trackerPayloadPatch: { entries: { '2026-08-16': { steps: String(v) } } } }
+    }];
+    const makeClient = (v) => ({
+      from: () => ({ select: () => ({ order: () => ({ limit: async () => ({ data: rows(v), error: null }) }) }) })
+    });
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+    window.hasRemoteConfig = () => true;
+    window.__trackerTest.remoteRuntime.user = { id: 'u1', email: 'me@example.com' };
+
+    const st = window.__trackerTest.getState();
+    st.selectedDate = '2026-08-16';
+    const entry = st.entries['2026-08-16'];
+
+    // Simulate a manual edit of steps.
+    entry.steps = '9000';
+    window.markGarminManualField(entry, 'steps');
+    out.locked = entry.garmin.manualFields.includes('steps');
+
+    // A normal sync must NOT overwrite the manual value.
+    window.ensureSupabaseClient = async () => makeClient(11000);
+    window.__trackerTest.resetGarminThrottle();
+    await window.autoPullGarmin();
+    out.afterNormalPull = st.entries['2026-08-16'].steps;
+
+    // "Use Garmin values" must clear the lock and take the Garmin number.
+    await window.resetGarminOverrides('2026-08-16');
+    out.afterReset = st.entries['2026-08-16'].steps;
+    out.lockCleared = !st.entries['2026-08-16'].garmin.manualFields.includes('steps');
+
+    // A later sync with a higher count must now refresh normally.
+    window.ensureSupabaseClient = async () => makeClient(12500);
+    window.__trackerTest.resetGarminThrottle();
+    await window.autoPullGarmin();
+    out.afterRefresh = st.entries['2026-08-16'].steps;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    window.__trackerTest.remoteRuntime.user = null;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('manual edit locks the field', override.locked === true, String(override.locked));
+  check('sync does not overwrite a manual value', override.afterNormalPull === '9000',
+    `steps=${override.afterNormalPull}`);
+  check('reset restores the Garmin value', override.afterReset === '11000',
+    `steps=${override.afterReset}`);
+  check('reset clears the lock', override.lockCleared === true, String(override.lockCleared));
+  check('imported field refreshes on later sync', override.afterRefresh === '12500',
+    `steps=${override.afterRefresh}`);
+
   const w = page.locator('#weightInput');
   check('weight input present', (await w.count()) === 1);
   const inputmode = await w.getAttribute('inputmode');

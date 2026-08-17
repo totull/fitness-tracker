@@ -18,6 +18,7 @@ This folder adds a **small Android companion app scaffold** for the existing `fi
   - exercise sessions
 - Normalizes a **JSON export boundary** for the current web tracker payload shape
 - Can authenticate to Supabase with an email OTP and upload the export directly
+- Schedules an authenticated Health Connect upload about every 4 hours and catches up when the app opens
 - Keeps the existing document-picker JSON export flow
 - **Does not** handle Garmin credentials, Bluetooth pairing, or unofficial Garmin APIs
 
@@ -29,7 +30,7 @@ The app uses `HttpURLConnection` and the Supabase REST/Auth endpoints; no Supaba
 - `payload` — the complete `HealthConnectExport` JSON object
 - `updated_at` — the export timestamp
 
-Run the SQL in the repository root `supabase-schema.sql` in the Supabase SQL editor. It creates `fitness_tracker_garmin_sync`, enables RLS, and limits each row to its authenticated owner. Enable email OTP in Supabase Auth, then enter the project URL, anon key, and email in the Android app. Tap **Request OTP**, enter the code, tap **Verify OTP**, and tap **Sync to tracker**. Sync builds the current Health Connect export in memory and uploads it without creating a local JSON file.
+Run the SQL in the repository root `supabase-schema.sql` in the Supabase SQL editor. It creates `fitness_tracker_garmin_sync`, enables RLS, and limits each row to its authenticated owner. Enable email OTP in Supabase Auth, then enter the project URL, anon key, and email in the Android app. Tap **Request OTP**, enter the code, and tap **Verify OTP**. The app persists this configuration and session, schedules background uploads about every 4 hours, and catches up when opened. Sync builds the current Health Connect export in memory and uploads it without creating a local JSON file.
 
 The web tracker can pull the row from its existing `fitness_tracker_state` flow only after a separate import/integration step; this Android sync does not modify `Tracker.html`.
 
@@ -125,5 +126,6 @@ Suggested checks:
 ## Caveats
 
 - The project URL, anon key, and email are saved in app-private storage for future launches. After OTP verification, the authenticated session and refresh token are also saved so normal syncs do not require signing in again; changing any saved configuration clears the session.
+- Background sync additionally requires `READ_HEALTH_DATA_IN_BACKGROUND` and an unrestricted battery setting on OnePlus/OxygenOS.
 - OTP verification depends on Supabase email OTP being enabled and the email provider being configured.
 - A Java 17/Android SDK 35 environment is required for the Gradle build; if Java is unavailable, the Kotlin changes can still be reviewed without running Gradle.

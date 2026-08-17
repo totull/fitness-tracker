@@ -37,7 +37,9 @@ data class CompanionUiState(
     val supabaseOtpRequested: Boolean = false,
     val supabaseSignedInEmail: String? = null,
     val supabaseMessage: String? = null,
-    val supabaseErrorMessage: String? = null
+    val supabaseErrorMessage: String? = null,
+    val lastSuccessfulSyncAt: String? = null,
+    val lastSyncError: String? = null
 ) {
     val missingPermissions: Set<String>
         get() = requiredPermissions - grantedPermissions
@@ -70,8 +72,21 @@ class HealthConnectCompanionViewModel(
 
     private var currentExport: HealthConnectExport? = null
     private var supabaseSession: SupabaseSession? = savedSupabaseState.session
+    private val syncCoordinator = GarminSyncCoordinator(
+        repository = repository,
+        supabaseSyncClient = supabaseSyncClient,
+        supabaseSessionStore = supabaseSessionStore,
+        json = json
+    )
 
     init {
+        uiState = uiState.copy(
+            lastSuccessfulSyncAt = savedSupabaseState.lastSuccessfulSyncAt,
+            lastSyncError = savedSupabaseState.lastSyncError
+        )
+        if (supabaseSession != null) {
+            GarminSyncScheduler.enqueuePeriodic(repository.context())
+        }
         refreshStatus()
     }
 
@@ -99,7 +114,23 @@ class HealthConnectCompanionViewModel(
                     uiState.infoMessage
                 }
             )
+            refreshSyncStatus()
         }
+    }
+
+    fun refreshSyncStatus() {
+        val saved = supabaseSessionStore.load()
+        uiState = uiState.copy(
+            lastSuccessfulSyncAt = saved.lastSuccessfulSyncAt,
+            lastSyncError = saved.lastSyncError
+        )
+        if (saved.session != null) {
+            GarminSyncScheduler.enqueueForegroundIfStale(repository.context(), saved.lastSuccessfulSyncAt)
+        }
+    }
+
+    fun onAppForegrounded() {
+        refreshSyncStatus()
     }
 
     fun updateStartDate(value: String) {
@@ -124,6 +155,7 @@ class HealthConnectCompanionViewModel(
     fun updateSupabaseUrl(value: String) {
         supabaseSession = null
         supabaseSessionStore.clearSession()
+        GarminSyncScheduler.cancel(repository.context())
         supabaseSessionStore.saveConfiguration(value.trim(), uiState.supabaseAnonKey.trim(), uiState.supabaseEmail.trim())
         uiState = uiState.copy(
             supabaseUrl = value,
@@ -137,6 +169,7 @@ class HealthConnectCompanionViewModel(
     fun updateSupabaseAnonKey(value: String) {
         supabaseSession = null
         supabaseSessionStore.clearSession()
+        GarminSyncScheduler.cancel(repository.context())
         supabaseSessionStore.saveConfiguration(uiState.supabaseUrl.trim(), value.trim(), uiState.supabaseEmail.trim())
         uiState = uiState.copy(
             supabaseAnonKey = value,
@@ -150,6 +183,7 @@ class HealthConnectCompanionViewModel(
     fun updateSupabaseEmail(value: String) {
         supabaseSession = null
         supabaseSessionStore.clearSession()
+        GarminSyncScheduler.cancel(repository.context())
         supabaseSessionStore.saveConfiguration(uiState.supabaseUrl.trim(), uiState.supabaseAnonKey.trim(), value.trim())
         uiState = uiState.copy(
             supabaseEmail = value,
@@ -229,12 +263,14 @@ class HealthConnectCompanionViewModel(
             }.onSuccess { session ->
                 supabaseSession = session
                 supabaseSessionStore.saveSession(session)
+                GarminSyncScheduler.enqueuePeriodic(repository.context())
                 uiState = uiState.copy(
                     isBusy = false,
                     supabaseOtpRequested = false,
                     supabaseSignedInEmail = session.email ?: email,
                     supabaseMessage = "Supabase sign-in verified. You can sync to the tracker.",
-                    supabaseErrorMessage = null
+                    supabaseErrorMessage = null,
+                    lastSyncError = supabaseSessionStore.load().lastSyncError
                 )
             }.onFailure { error ->
                 uiState = uiState.copy(
@@ -276,40 +312,31 @@ class HealthConnectCompanionViewModel(
                 infoMessage = null
             )
             runCatching {
-                val (export, preview) = buildExport()
-                val activeSession = withContext(Dispatchers.IO) {
-                    if (session.expiresAtEpochSeconds > 0L &&
-                        session.expiresAtEpochSeconds <= java.time.Instant.now().epochSecond + 60L
-                    ) {
-                        supabaseSyncClient.refreshSession(url, anonKey, session)
-                    } else {
-                        session
-                    }
-                }
-                if (activeSession !== session) {
-                    supabaseSession = activeSession
-                    supabaseSessionStore.saveSession(activeSession)
-                }
                 withContext(Dispatchers.IO) {
-                    supabaseSyncClient.uploadExport(url, anonKey, activeSession, export)
+                    syncCoordinator.sync(url, anonKey, session)
                 }
-                Triple(export, preview, activeSession)
-            }.onSuccess { (export, preview, signedInSession) ->
-                currentExport = export
+            }.onSuccess { outcome ->
+                supabaseSession = outcome.session
+                val saved = supabaseSessionStore.load()
+                currentExport = outcome.export
                 uiState = uiState.copy(
                     isBusy = false,
-                    exportPreview = preview,
-                    exportRecordCounts = export.recordCounts,
-                    trackerEntryCount = export.trackerPayloadPatch.entries.size,
-                    dailySummaries = export.dailySummaries,
-                    supabaseMessage = "Synced ${export.trackerPayloadPatch.entries.size} tracker entries to Supabase for ${signedInSession.email ?: "this user"}.",
-                    supabaseErrorMessage = null
+                    exportPreview = outcome.preview,
+                    exportRecordCounts = outcome.export.recordCounts,
+                    trackerEntryCount = outcome.export.trackerPayloadPatch.entries.size,
+                    dailySummaries = outcome.export.dailySummaries,
+                    supabaseMessage = "Synced ${outcome.export.trackerPayloadPatch.entries.size} tracker entries to Supabase for ${outcome.session.email ?: "this user"}.",
+                    supabaseErrorMessage = null,
+                    lastSuccessfulSyncAt = saved.lastSuccessfulSyncAt,
+                    lastSyncError = null
                 )
             }.onFailure { error ->
+                supabaseSessionStore.saveSyncError(error.message ?: "Unable to sync to the tracker.")
                 uiState = uiState.copy(
                     isBusy = false,
                     supabaseErrorMessage = error.message ?: "Unable to sync to the tracker.",
-                    supabaseMessage = null
+                    supabaseMessage = null,
+                    lastSyncError = error.message
                 )
             }
         }

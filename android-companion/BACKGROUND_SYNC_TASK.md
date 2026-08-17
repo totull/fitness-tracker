@@ -52,7 +52,7 @@ New file `app/src/main/java/com/fitnesstracker/companion/GarminSyncWorker.kt`:
   run the same code path.
 - Read config and session from `supabaseSessionStore`.
 - Refresh the token when near expiry via `SupabaseSyncClient.refreshSession()`,
-  and persist the refreshed session. An 8-hour cadence means the access token
+  and persist the refreshed session. A 4-hour cadence means the access token
   will essentially always be expired on entry, so this path must work — it is
   the most likely silent failure.
 - Return `Result.retry()` on network/5xx, `Result.failure()` on auth failure
@@ -61,7 +61,7 @@ New file `app/src/main/java/com/fitnesstracker/companion/GarminSyncWorker.kt`:
 Schedule:
 
 ```kotlin
-PeriodicWorkRequestBuilder<GarminSyncWorker>(8, TimeUnit.HOURS)
+PeriodicWorkRequestBuilder<GarminSyncWorker>(4, TimeUnit.HOURS)
     .setConstraints(
         Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -89,7 +89,7 @@ by the OS is invisible to the user.
 
 ## OnePlus 12 / OxygenOS caveat — call this out in the UI
 
-OxygenOS is aggressive about killing deferred background work, and an 8-hour
+OxygenOS is aggressive about killing deferred background work, and a 4-hour
 `PeriodicWorkRequest` is a prime target. Expect syncs to stop unless the app is
 exempted from battery optimisation.
 
@@ -116,7 +116,7 @@ On-device verification (cannot be done from the tracker session):
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 
-# Force the periodic worker without waiting 8 hours:
+# Force the periodic worker without waiting 4 hours:
 adb shell cmd jobscheduler run -f com.fitnesstracker.companion <jobId>
 # or inspect scheduled work:
 adb shell dumpsys jobscheduler | grep -A5 fitnesstracker

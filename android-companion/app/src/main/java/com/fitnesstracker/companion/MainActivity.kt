@@ -55,6 +55,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.onAppForegrounded()
+    }
 }
 
 @Composable
@@ -177,6 +182,23 @@ private fun CompanionApp(viewModel: HealthConnectCompanionViewModel) {
                     } ?: "Not signed in.",
                     style = MaterialTheme.typography.bodySmall
                 )
+                Text(
+                    text = state.lastSuccessfulSyncAt?.let {
+                        "Last successful background sync: $it"
+                    } ?: "No successful background sync yet.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                state.lastSyncError?.let {
+                    Text(
+                        text = "Last sync error: $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                Text(
+                    "Background sync runs about every 4 hours when network and Health Connect background access are available. On OnePlus/OxygenOS, set this app to Settings → Battery → App battery usage → Unrestricted.",
+                    style = MaterialTheme.typography.bodySmall
+                )
                 Button(
                     onClick = viewModel::syncToTracker,
                     enabled = state.supabaseSignedInEmail != null && !state.isBusy,
@@ -219,6 +241,13 @@ private fun CompanionApp(viewModel: HealthConnectCompanionViewModel) {
                     },
                     style = MaterialTheme.typography.bodyMedium
                 )
+                if (HealthConnectRepository.BACKGROUND_PERMISSION !in state.grantedPermissions) {
+                    Text(
+                        "Background sync also requires Health Connect background read access.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
                 state.requiredPermissions.forEach { permission ->
                     Text(
                         text = "• ${permissionLabel(permission)} ${if (permission in state.grantedPermissions) "✓" else ""}",

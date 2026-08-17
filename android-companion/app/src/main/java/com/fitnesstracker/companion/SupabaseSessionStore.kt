@@ -6,7 +6,9 @@ data class SavedSupabaseState(
     val url: String = "",
     val anonKey: String = "",
     val email: String = "",
-    val session: SupabaseSession? = null
+    val session: SupabaseSession? = null,
+    val lastSuccessfulSyncAt: String? = null,
+    val lastSyncError: String? = null
 )
 
 class SupabaseSessionStore(context: Context) {
@@ -32,7 +34,9 @@ class SupabaseSessionStore(context: Context) {
             url = preferences.getString(KEY_URL, "").orEmpty(),
             anonKey = preferences.getString(KEY_ANON_KEY, "").orEmpty(),
             email = preferences.getString(KEY_EMAIL, "").orEmpty(),
-            session = session
+            session = session,
+            lastSuccessfulSyncAt = preferences.getString(KEY_LAST_SUCCESSFUL_SYNC_AT, null),
+            lastSyncError = preferences.getString(KEY_LAST_SYNC_ERROR, null)
         )
     }
 
@@ -64,6 +68,19 @@ class SupabaseSessionStore(context: Context) {
             .apply()
     }
 
+    fun saveSuccessfulSync(at: String) {
+        preferences.edit()
+            .putString(KEY_LAST_SUCCESSFUL_SYNC_AT, at)
+            .remove(KEY_LAST_SYNC_ERROR)
+            .apply()
+    }
+
+    fun saveSyncError(error: String) {
+        preferences.edit()
+            .putString(KEY_LAST_SYNC_ERROR, error)
+            .apply()
+    }
+
     private companion object {
         const val PREFERENCES_NAME = "supabase_session"
         const val KEY_URL = "url"
@@ -74,5 +91,7 @@ class SupabaseSessionStore(context: Context) {
         const val KEY_SESSION_EMAIL = "session_email"
         const val KEY_REFRESH_TOKEN = "refresh_token"
         const val KEY_EXPIRES_AT = "expires_at"
+        const val KEY_LAST_SUCCESSFUL_SYNC_AT = "last_successful_sync_at"
+        const val KEY_LAST_SYNC_ERROR = "last_sync_error"
     }
 }

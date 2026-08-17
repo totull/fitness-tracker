@@ -31,8 +31,11 @@ class HealthConnectRepository(context: Context) {
         HealthConnectClient.getOrCreate(appContext)
     }
 
+    fun context(): Context = appContext
+
     fun requiredPermissions(): Set<String> {
         return linkedSetOf(
+            BACKGROUND_PERMISSION,
             HealthPermission.getReadPermission(StepsRecord::class),
             HealthPermission.getReadPermission(DistanceRecord::class),
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
@@ -44,6 +47,10 @@ class HealthConnectRepository(context: Context) {
             HealthPermission.getReadPermission(BodyFatRecord::class),
             HealthPermission.getReadPermission(ExerciseSessionRecord::class)
         )
+    }
+
+    companion object {
+        const val BACKGROUND_PERMISSION = HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND
     }
 
     fun sdkStatus(): HealthConnectSdkStatus {

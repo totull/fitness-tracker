@@ -18,6 +18,11 @@ data class SupabaseSession(
     val expiresAtEpochSeconds: Long = 0L
 )
 
+class SupabaseRequestException(
+    val statusCode: Int,
+    message: String
+) : IOException(message)
+
 class SupabaseSyncClient(
     private val json: Json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 ) {
@@ -107,7 +112,10 @@ class SupabaseSyncClient(
             val response = (if (code in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
-                throw IOException("Supabase request failed ($code): ${response.take(300)}")
+                throw SupabaseRequestException(
+                    code,
+                    "Supabase request failed ($code): ${response.take(300)}"
+                )
             }
             response
         } finally {

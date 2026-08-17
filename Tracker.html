@@ -1780,7 +1780,10 @@
           setGarminStatus(message, "warn");
           setRemoteStatus(message, "warn");
         } else {
-          applyGarminCompanionPayload(row.payload, { queueRemote: false });
+          applyGarminCompanionPayload(row.payload, {
+            queueRemote: false,
+            forceDates: options.forceDates
+          });
           remoteRuntime.lastSyncAt = row.updated_at || new Date().toISOString();
           const dayCount = Object.keys(row.payload.trackerPayloadPatch.entries).length;
           message = `Synced ${dayCount} day${dayCount === 1 ? "" : "s"} from the companion.`;
@@ -1821,6 +1824,35 @@
         return "Could not reach Supabase. Check your connection and the project URL.";
       }
       return raw;
+    }
+
+    // A hand-edited field is locked out of every future import. Without this
+    // there is no way back: the lock is invisible and permanent.
+    async function resetGarminOverrides(dateKey) {
+      const entry = ensureEntry(dateKey);
+      const locked = (entry.garmin?.manualFields || []).slice();
+      if (!locked.length) {
+        return;
+      }
+      garminRuntime.syncing = true;
+      setGarminStatus("Restoring Garmin values…", "primary");
+      render();
+      try {
+        const result = await pullGarminRemotePayload({
+          silent: true,
+          forceDates: new Set([dateKey])
+        });
+        if (result.reason === "ok") {
+          setGarminStatus(
+            `Restored ${locked.join(", ")} from Garmin. Your manual override was cleared.`,
+            "success"
+          );
+        }
+        saveState({ queueRemote: false });
+      } finally {
+        garminRuntime.syncing = false;
+        render();
+      }
     }
 
     const GARMIN_AUTO_PULL_INTERVAL_MS = 15 * 60 * 1000;
@@ -2305,19 +2337,19 @@
       return String(value) === String(defaults[fieldName] ?? "");
     }
 
-    function applyGarminField(entry, fieldName, value, importedFields) {
+    function applyGarminField(entry, fieldName, value, importedFields, force = false) {
       if (value === null || value === undefined || value === "") {
         return;
       }
       const manualFields = entry.garmin.manualFields || [];
       const currentValue = entry[fieldName];
-      if (manualFields.includes(fieldName) || (
+      if (!force && (manualFields.includes(fieldName) || (
         currentValue !== "" &&
         currentValue !== null &&
         currentValue !== undefined &&
         !(entry.garmin.importedFields || []).includes(fieldName) &&
         !isGarminDefaultValue(entry, fieldName, currentValue)
-      )) {
+      ))) {
         return;
       }
       entry[fieldName] = String(value);
@@ -2363,13 +2395,17 @@
           return;
         }
         const entry = ensureEntry(dateKey);
+        const force = Boolean(options.forceDates?.has(dateKey));
+        if (force) {
+          entry.garmin.manualFields = [];
+        }
         const importedFields = Array.isArray(entry.garmin.importedFields)
           ? entry.garmin.importedFields
           : [];
         const before = importedFields.length;
 
         ["weight", "steps", "sleepHours", "cardioType", "cardioDuration", "cardioCalories"].forEach((fieldName) => {
-          applyGarminField(entry, fieldName, imported[fieldName], importedFields);
+          applyGarminField(entry, fieldName, imported[fieldName], importedFields, force);
         });
         if (imported.workoutDone === true && !entry.garmin.manualFields.includes("workoutDone")) {
           entry.workoutDone = true;
@@ -3540,6 +3576,7 @@
       const strengthSessions = sessions.filter((session) => /strength/i.test(session.title || ""));
       const syncLabel = hasImport ? "Up to date" : "Not synced";
       const syncTone = hasImport ? "success" : "warn";
+      const lockedFields = Array.isArray(garmin.manualFields) ? garmin.manualFields : [];
 
       return `
         <div class="card garmin-card">
@@ -3552,7 +3589,7 @@
           </div>
           <div class="inline-actions">
             <button class="action-button" type="button" data-action="sync-garmin"${garminRuntime.syncing ? " disabled" : ""}>${garminRuntime.syncing ? "Syncing…" : "Sync Garmin"}</button>
-            <span class="muted">Last sync ${escapeText(importedAt)}</span>
+            <span class="muted">Companion captured ${escapeText(importedAt)}</span>
           </div>
           ${garminRuntime.status ? `
             <p class="garmin-status ${escapeText(garminRuntime.tone)}">${escapeText(garminRuntime.status)}</p>
@@ -3562,6 +3599,19 @@
               ? escapeText(remoteRuntime.user.email || remoteRuntime.user.id)
               : "not signed in"}. The companion must upload from this same account.
           </p>
+          ${lockedFields.length ? `
+            <div class="garmin-status warn" style="margin-top:10px;">
+              <strong>Manual override active:</strong>
+              ${escapeText(lockedFields.join(", "))}.
+              Garmin will never update ${lockedFields.length === 1 ? "this field" : "these fields"} for this day
+              until you restore ${lockedFields.length === 1 ? "it" : "them"}.
+              <div style="margin-top:8px;">
+                <button class="ghost-button" type="button" data-action="garmin-reset-overrides">
+                  Use Garmin values
+                </button>
+              </div>
+            </div>
+          ` : ""}
           <div class="metric-grid" style="margin-top:12px;">
             <div class="metric">
               <span class="muted">Steps</span>
@@ -4614,6 +4664,11 @@
 
       if (button.dataset.action === "sync-garmin") {
         syncGarmin();
+        return;
+      }
+
+      if (button.dataset.action === "garmin-reset-overrides") {
+        resetGarminOverrides(state.selectedDate);
         return;
       }
 
