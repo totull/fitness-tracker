@@ -1562,6 +1562,11 @@
       };
     }
 
+    function isSummaryRicher(first, second) {
+      return first.mealCount > second.mealCount ||
+        first.exerciseCount > second.exerciseCount;
+    }
+
     function applyRemotePayload(payload) {
       state.startDate = TRACKER_START_DATE;
       const incomingProfile = {
@@ -1677,6 +1682,28 @@
         }
 
         const payload = buildRemotePayload();
+        const localSummary = summarizeRemoteDay(payload);
+        const { data: existing, error: readError } = await client
+          .from(REMOTE_TABLE)
+          .select("payload, updated_at")
+          .maybeSingle();
+        if (readError) {
+          throw readError;
+        }
+        const cloudSummary = summarizeRemoteDay(existing?.payload || {});
+        if (!options.force && isSummaryRicher(cloudSummary, localSummary)) {
+          const message =
+            `Upload blocked to prevent data loss: the cloud has ${cloudSummary.mealCount} meals and ` +
+            `${cloudSummary.exerciseCount} completed exercises for ${formatHumanDate(state.selectedDate)}, ` +
+            `while this browser has ${localSummary.mealCount} meals and ${localSummary.exerciseCount}.`;
+          setRemoteStatus(message, "danger");
+          result = { success: false, reason: "cloud-richer", message };
+          if (!options.silent) {
+            render();
+          }
+          return result;
+        }
+
         const { data, error } = await client
           .from(REMOTE_TABLE)
           .upsert({
@@ -1762,6 +1789,23 @@
         if (!data?.payload) {
           setRemoteStatus("No cloud data yet. Push local data to create your first backup.", "warn");
         } else {
+          const localSummary = summarizeRemoteDay(buildRemotePayload());
+          const cloudSummary = summarizeRemoteDay(data.payload);
+          if (!options.force && isSummaryRicher(localSummary, cloudSummary)) {
+            remoteRuntime.dirty = true;
+            state.syncMeta = { dirty: true };
+            persistLocalState();
+            const message =
+              `Download blocked to protect this browser: it has ${localSummary.mealCount} meals and ` +
+              `${localSummary.exerciseCount} completed exercises for ${formatHumanDate(state.selectedDate)}, ` +
+              `while the cloud has ${cloudSummary.mealCount} meals and ${cloudSummary.exerciseCount}. ` +
+              `Upload this browser to restore the cloud copy.`;
+            setRemoteStatus(message, "danger");
+            if (!options.silent) {
+              render();
+            }
+            return { hasData: false, reason: "local-richer", message };
+          }
           remoteRuntime.pulling = true;
           applyRemotePayload(data.payload);
           saveState({ queueRemote: false });
@@ -1787,19 +1831,6 @@
         render();
       }
       return { hasData: Boolean(pulledData?.payload), updatedAt: pulledData?.updated_at || null };
-    }
-
-    async function syncRemoteState() {
-      setRemoteStatus(
-        remoteRuntime.dirty ? "Uploading this browser's changes…" : "Checking for cloud changes…",
-        "primary"
-      );
-      render();
-      const result = remoteRuntime.dirty
-        ? await pushRemoteState({ silent: true })
-        : await pullRemoteState({ silent: true });
-      render();
-      return result;
     }
 
     async function pullGarminRemotePayload(options = {}) {
@@ -4507,17 +4538,18 @@
                 <input class="input" type="email" value="${escapeValue(state.remote.email)}" data-remote-field="email" placeholder="you@example.com">
               </div>
               <div class="inline-actions">
-                <button class="action-button" type="button" data-action="remote-sync">
-                  ${remoteRuntime.dirty ? "Upload this browser's changes" : "Sync tracker now"}
+                <button class="action-button" type="button" data-action="remote-push">
+                  Upload this browser → cloud
+                </button>
+                <button class="ghost-button" type="button" data-action="remote-pull">
+                  Download cloud → this browser
                 </button>
               </div>
               <details>
-                <summary>Account and recovery controls</summary>
+                <summary>Account controls</summary>
                 <div class="inline-actions" style="margin-top:10px;">
                 <button class="mini-button" type="button" data-action="remote-magic-link">Send magic link</button>
                 <button class="mini-button" type="button" data-action="remote-restore-session">Restore session</button>
-                <button class="mini-button" type="button" data-action="remote-push">Upload this browser</button>
-                <button class="mini-button" type="button" data-action="remote-pull">Download cloud copy</button>
                 <button class="ghost-button" type="button" data-action="remote-signout">Sign out</button>
                 </div>
               </details>
@@ -4711,7 +4743,7 @@
       if (target.id === "entryDate") {
         state.selectedDate = maxDateKey(target.value || todayKey(), TRACKER_START_DATE);
         ensureEntry(state.selectedDate);
-        saveState();
+        saveState({ queueRemote: false });
         render();
         return;
       }
@@ -4798,7 +4830,7 @@
 
       if (button.dataset.view) {
         state.currentView = button.dataset.view;
-        saveState();
+        saveState({ queueRemote: false });
         render();
         return;
       }
@@ -4809,14 +4841,14 @@
         state.selectedDate = maxDateKey(button.dataset.dateJump, TRACKER_START_DATE);
         state.currentView = "log";
         ensureEntry(state.selectedDate);
-        saveState();
+        saveState({ queueRemote: false });
         render();
         return;
       }
 
       if (button.dataset.action === "prev-day") {
         shiftSelectedDate(-1);
-        saveState();
+        saveState({ queueRemote: false });
         render();
         return;
       }
@@ -4824,14 +4856,14 @@
       if (button.dataset.action === "today") {
         state.selectedDate = maxDateKey(todayKey(), TRACKER_START_DATE);
         ensureEntry(state.selectedDate);
-        saveState();
+        saveState({ queueRemote: false });
         render();
         return;
       }
 
       if (button.dataset.action === "next-day") {
         shiftSelectedDate(1);
-        saveState();
+        saveState({ queueRemote: false });
         render();
         return;
       }
@@ -4843,11 +4875,6 @@
 
       if (button.dataset.action === "remote-restore-session") {
         restoreRemoteSession();
-        return;
-      }
-
-      if (button.dataset.action === "remote-sync") {
-        syncRemoteState();
         return;
       }
 
@@ -4927,7 +4954,7 @@
 
       if (button.dataset.action === "toggle-workout") {
         state.ui.workoutExpanded = !state.ui.workoutExpanded;
-        saveState();
+        saveState({ queueRemote: false });
         render();
         return;
       }

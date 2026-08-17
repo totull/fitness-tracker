@@ -44,8 +44,25 @@ function check(name, pass, detail) {
 
   const syncBtn = page.locator('[data-action="sync-garmin"]');
   check('Sync Garmin button present', (await syncBtn.count()) === 1);
-  check('single tracker sync action present',
-    (await page.locator('[data-action="remote-sync"]').count()) === 1);
+  check('explicit tracker upload action present',
+    (await page.locator('[data-action="remote-push"]').count()) === 1);
+  check('explicit tracker download action present',
+    (await page.locator('[data-action="remote-pull"]').count()) === 1);
+
+  await page.evaluate(() => {
+    window.__trackerTest.remoteRuntime.dirty = false;
+    window.__trackerTest.getState().syncMeta = { dirty: false };
+  });
+  await page.locator('.tab-button[data-view="summary"]').click();
+  await page.waitForTimeout(850);
+  const navigationDirty = await page.evaluate(() => ({
+    runtime: window.__trackerTest.remoteRuntime.dirty,
+    persisted: window.__trackerTest.getState().syncMeta?.dirty
+  }));
+  check('view navigation never marks tracker data dirty',
+    !navigationDirty.runtime && !navigationDirty.persisted, JSON.stringify(navigationDirty));
+  await page.locator('.tab-button[data-view="log"]').click();
+  await page.waitForTimeout(100);
 
   // Failure path: no cloud config must surface a specific in-card reason.
   await syncBtn.first().click();
@@ -253,8 +270,16 @@ function check(name, pass, detail) {
     const dateKey = '2026-08-16';
     st.selectedDate = dateKey;
 
-    const makeClient = (mutateStored) => ({
+    const makeClient = (mutateStored, existingPayload = null) => ({
       from: () => ({
+        select: () => ({
+          maybeSingle: async () => ({
+            data: existingPayload
+              ? { payload: existingPayload, updated_at: '2026-08-17T11:09:00Z' }
+              : null,
+            error: null
+          })
+        }),
         upsert: (row) => ({
           select: () => ({
             single: async () => {
@@ -288,6 +313,13 @@ function check(name, pass, detail) {
     out.bad = bad.success;
     out.badMessage = bad.message;
 
+    const richerCloud = JSON.parse(JSON.stringify(window.buildRemotePayload()));
+    richerCloud.entries[dateKey].meals.lunch.details = 'Cloud-only lunch';
+    window.ensureSupabaseClient = async () => makeClient(null, richerCloud);
+    const blocked = await window.pushRemoteState({ silent: true });
+    out.blockedReason = blocked.reason;
+    out.blockedMessage = blocked.message;
+
     window.ensureSupabaseClient = origEnsure;
     window.hasRemoteConfig = origHasCfg;
     runtime.user = null;
@@ -304,6 +336,11 @@ function check(name, pass, detail) {
   check('cloud payload mismatch fails verification', statePush.bad === false, String(statePush.bad));
   check('verification failure is actionable', /Cloud verification failed/.test(statePush.badMessage || ''),
     String(statePush.badMessage));
+  check('poorer browser cannot overwrite richer cloud copy',
+    statePush.blockedReason === 'cloud-richer', String(statePush.blockedReason));
+  check('blocked overwrite explains the count difference',
+    /Upload blocked to prevent data loss/.test(statePush.blockedMessage || ''),
+    String(statePush.blockedMessage));
 
   // Tracker-state auto-pull is separate from Garmin. This is the phone ->
   // laptop path for meals, workouts and check-ins.
@@ -315,6 +352,11 @@ function check(name, pass, detail) {
     const st = window.__trackerTest.getState();
     const dateKey = '2026-08-16';
     const remoteEntry = JSON.parse(JSON.stringify(st.entries[dateKey]));
+    Object.values(remoteEntry.meals).forEach((meal) => {
+      meal.details = '';
+      meal.caloriesOverride = '';
+      meal.macroOverride = '';
+    });
     remoteEntry.meals.breakfast.details = 'Remote phone breakfast';
     const payload = {
       version: st.version,
@@ -322,11 +364,12 @@ function check(name, pass, detail) {
       profile: JSON.parse(JSON.stringify(st.profile)),
       entries: { [dateKey]: remoteEntry }
     };
+    let cloudPayload = payload;
     const client = {
       from: () => ({
         select: () => ({
           maybeSingle: async () => ({
-            data: { payload, updated_at: '2026-08-17T11:05:00Z' },
+            data: { payload: cloudPayload, updated_at: '2026-08-17T11:05:00Z' },
             error: null
           })
         })
@@ -344,6 +387,22 @@ function check(name, pass, detail) {
     out.breakfast = window.__trackerTest.getState().entries[dateKey].meals.breakfast.details;
     out.pullAt = runtime.lastStatePullAt;
     out.second = (await window.autoPullRemoteState()).skipped;
+
+    // A cloud download must not erase a richer local day.
+    window.__trackerTest.getState().entries[dateKey].meals.lunch.details = 'Local-only lunch';
+    cloudPayload = JSON.parse(JSON.stringify(payload));
+    Object.values(cloudPayload.entries[dateKey].meals).forEach((meal) => {
+      meal.details = '';
+      meal.caloriesOverride = '';
+      meal.macroOverride = '';
+    });
+    cloudPayload.entries[dateKey].meals.breakfast.details = 'Remote phone breakfast';
+    runtime.dirty = false;
+    const protectedPull = await window.pullRemoteState({ silent: true });
+    out.protectedPull = protectedPull.reason;
+    out.protectedMessage = runtime.status;
+    out.localLunchAfterPull =
+      window.__trackerTest.getState().entries[dateKey].meals.lunch.details;
 
     // An unsent laptop edit must not be silently replaced by auto-pull.
     window.__trackerTest.getState().entries[dateKey].meals.breakfast.details = 'Unsynced laptop edit';
@@ -367,6 +426,11 @@ function check(name, pass, detail) {
     String(statePull.pullAt));
   check('tracker auto-pull throttles repeats', statePull.second === 'throttled',
     String(statePull.second));
+  check('poorer cloud copy cannot erase richer browser data',
+    /Download blocked to protect this browser/.test(statePull.protectedMessage || ''),
+    String(statePull.protectedMessage));
+  check('blocked download preserves local meal',
+    statePull.localLunchAfterPull === 'Local-only lunch', String(statePull.localLunchAfterPull));
   check('tracker auto-pull protects unsent local edits', statePull.dirty === 'local-changes',
     String(statePull.dirty));
   check('protected local edit remains intact', statePull.afterDirty === 'Unsynced laptop edit',
