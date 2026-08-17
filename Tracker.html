@@ -1102,6 +1102,10 @@
     };
 
     let state = loadState();
+    // syncMeta is local-only and deliberately excluded from buildRemotePayload.
+    // Legacy browsers with saved data are treated as dirty once so an automatic
+    // pull cannot erase entries that may never have reached Supabase.
+    state.syncMeta = state.syncMeta || { dirty: Boolean(state.lastSavedAt) };
     const remoteRuntime = {
       client: null,
       configKey: "",
@@ -1113,7 +1117,7 @@
       syncTimer: null,
       unsubscribe: null,
       pulling: false,
-      dirty: false
+      dirty: Boolean(state.syncMeta.dirty)
     };
 
     function cloneData(value) {
@@ -1438,10 +1442,13 @@
     }
 
     function saveState(options = {}) {
+      if (options.queueRemote !== false) {
+        remoteRuntime.dirty = true;
+        state.syncMeta = { dirty: true };
+      }
       persistLocalState();
       renderSaveNote();
       if (options.queueRemote !== false) {
-        remoteRuntime.dirty = true;
         queueRemoteSync();
       }
     }
@@ -1481,7 +1488,7 @@
       remoteRuntime.unsubscribe = null;
       remoteRuntime.lastStatePushAt = null;
       remoteRuntime.lastStatePullAt = null;
-      remoteRuntime.dirty = false;
+      remoteRuntime.dirty = Boolean(state.syncMeta?.dirty);
       clearTimeout(remoteRuntime.syncTimer);
       remoteRuntime.syncTimer = null;
     }
@@ -1593,7 +1600,6 @@
         remoteRuntime.user = data.session?.user || null;
         if (remoteRuntime.user) {
           setRemoteStatus(`Signed in as ${remoteRuntime.user.email || state.remote.email}`, "success");
-          await pullRemoteState({ silent: true });
         } else {
           setRemoteStatus("Send a magic link to sign in from this device.", "warn");
         }
@@ -1703,6 +1709,8 @@
 
         remoteRuntime.lastStatePushAt = data.updated_at || new Date().toISOString();
         remoteRuntime.dirty = false;
+        state.syncMeta = { dirty: false };
+        persistLocalState();
         setRemoteStatus(
           `Uploaded and verified ${stored.mealCount} meal${stored.mealCount === 1 ? "" : "s"} and ` +
           `${stored.exerciseCount} completed exercise${stored.exerciseCount === 1 ? "" : "s"} ` +
@@ -1760,6 +1768,8 @@
           remoteRuntime.pulling = false;
           remoteRuntime.lastStatePullAt = data.updated_at || new Date().toISOString();
           remoteRuntime.dirty = false;
+          state.syncMeta = { dirty: false };
+          persistLocalState();
           const stored = summarizeRemoteDay(data.payload);
           setRemoteStatus(
             `Downloaded ${stored.mealCount} meal${stored.mealCount === 1 ? "" : "s"} and ` +
@@ -2410,7 +2420,7 @@
       }
 
       if (shouldSave) {
-        saveState();
+        saveState({ queueRemote: false });
       }
 
       return entry;
@@ -4497,7 +4507,9 @@
                 <input class="input" type="email" value="${escapeValue(state.remote.email)}" data-remote-field="email" placeholder="you@example.com">
               </div>
               <div class="inline-actions">
-                <button class="action-button" type="button" data-action="remote-sync">Sync tracker now</button>
+                <button class="action-button" type="button" data-action="remote-sync">
+                  ${remoteRuntime.dirty ? "Upload this browser's changes" : "Sync tracker now"}
+                </button>
               </div>
               <details>
                 <summary>Account and recovery controls</summary>

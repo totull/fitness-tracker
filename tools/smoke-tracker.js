@@ -230,10 +230,17 @@ function check(name, pass, detail) {
   await page.waitForTimeout(150);
   const savedMealFromUi = await page.evaluate(() => {
     const st = window.__trackerTest.getState();
-    return st.entries[st.selectedDate]?.meals?.breakfast?.details;
+    return {
+      details: st.entries[st.selectedDate]?.meals?.breakfast?.details,
+      persistedDirty: st.syncMeta?.dirty,
+      runtimeDirty: window.__trackerTest.remoteRuntime.dirty
+    };
   });
   check('typing in meal UI persists to browser state',
-    savedMealFromUi === 'Phone breakfast upload', String(savedMealFromUi));
+    savedMealFromUi.details === 'Phone breakfast upload', String(savedMealFromUi.details));
+  check('meal edit persists unsent-change marker',
+    savedMealFromUi.persistedDirty === true && savedMealFromUi.runtimeDirty === true,
+    JSON.stringify(savedMealFromUi));
 
   // Upload must verify what Supabase stored and display the real operation
   // result instead of hiding it behind the signed-in email.
@@ -272,6 +279,7 @@ function check(name, pass, detail) {
     out.meals = good.summary?.mealCount;
     out.status = runtime.status;
     out.label = window.remoteStatusLabel();
+    out.dirtyCleared = !runtime.dirty && !st.syncMeta?.dirty;
 
     window.ensureSupabaseClient = async () => makeClient((stored) => {
       stored.payload.entries[dateKey].meals.breakfast.details = '';
@@ -291,6 +299,8 @@ function check(name, pass, detail) {
   check('verified upload reports meal count', statePush.meals >= 1, `meals=${statePush.meals}`);
   check('sync status shows operation result, not email', /Uploaded and verified/.test(statePush.label || ''),
     String(statePush.label));
+  check('verified upload clears persisted dirty marker', statePush.dirtyCleared === true,
+    String(statePush.dirtyCleared));
   check('cloud payload mismatch fails verification', statePush.bad === false, String(statePush.bad));
   check('verification failure is actionable', /Cloud verification failed/.test(statePush.badMessage || ''),
     String(statePush.badMessage));
