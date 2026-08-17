@@ -1823,12 +1823,40 @@
       return raw;
     }
 
+    const GARMIN_AUTO_PULL_INTERVAL_MS = 15 * 60 * 1000;
+    let lastGarminAutoPullAt = 0;
+
+    // Opportunistic background pull so opening the tracker already shows the
+    // companion's latest upload. Stays quiet unless it actually finds data:
+    // config and sign-in are checked here rather than inside the pull, so a
+    // signed-out visitor never sees an unprompted warning.
+    async function autoPullGarmin({ force = false } = {}) {
+      if (garminRuntime.syncing) {
+        return { skipped: "busy" };
+      }
+      if (!hasRemoteConfig() || !remoteRuntime.user) {
+        return { skipped: "not-ready" };
+      }
+      const now = Date.now();
+      if (!force && now - lastGarminAutoPullAt < GARMIN_AUTO_PULL_INTERVAL_MS) {
+        return { skipped: "throttled" };
+      }
+
+      lastGarminAutoPullAt = now;
+      garminRuntime.syncing = true;
+      try {
+        return await pullGarminRemotePayload({ silent: true });
+      } finally {
+        garminRuntime.syncing = false;
+        render();
+      }
+    }
+
     function latestGarminSyncAt() {
       return Object.values(state.entries)
         .map((entry) => entry?.garmin?.importedAt || "")
         .filter(Boolean)
-        .sort()
-        .at(-1) || "";
+        .sort()        .at(-1) || "";
     }
 
     async function syncGarmin() {
@@ -1840,6 +1868,7 @@
       setRemoteStatus("Syncing Garmin data…", "primary");
       render();
 
+      lastGarminAutoPullAt = Date.now();
       try {
         const result = await pullGarminRemotePayload({ silent: true });
         const importedAt = latestGarminSyncAt();
@@ -4834,10 +4863,30 @@
 
     // Test hook for tools/smoke-tracker.js. These are module-scoped consts, so
     // they are not reachable on window without this. The app never reads it.
-    window.__trackerTest = { remoteRuntime, garminRuntime, getState: () => state };
+    window.__trackerTest = {
+      remoteRuntime,
+      garminRuntime,
+      getState: () => state,
+      resetGarminThrottle: () => { lastGarminAutoPullAt = 0; }
+    };
 
     render();
-    restoreRemoteSession({ silent: true }).then(() => render());
+    // Pull the companion's latest upload once the cloud session is restored, so
+    // the tracker is current on open without a manual tap.
+    restoreRemoteSession({ silent: true })
+      .then(() => {
+        render();
+        return autoPullGarmin();
+      })
+      .catch(() => render());
+
+    // Returning to the tab after time away is the other moment the data is
+    // likely stale. Throttled inside autoPullGarmin.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        autoPullGarmin();
+      }
+    });
   </script>
 </body>
 </html>

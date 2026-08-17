@@ -111,6 +111,58 @@ function check(name, pass, detail) {
   check('empty payload distinguished from missing row', branches.emptyPayload === 'empty-payload',
     String(branches.emptyPayload));
 
+  // Auto-pull: must stay silent when not signed in, pull when ready, then throttle.
+  const auto = await page.evaluate(async () => {
+    const out = {};
+    const makeClient = (rows) => ({
+      from: () => ({ select: () => ({ order: () => ({ limit: async () => ({ data: rows, error: null }) }) }) })
+    });
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+
+    // Signed out -> must not fire and must not post a warning.
+    window.hasRemoteConfig = () => true;
+    window.__trackerTest.remoteRuntime.user = null;
+    window.__trackerTest.garminRuntime.status = '';
+    out.signedOut = (await window.autoPullGarmin()).skipped;
+    out.signedOutStatus = window.__trackerTest.garminRuntime.status;
+
+    // Ready -> pulls. Reset the throttle first: the manual sync exercised
+    // earlier in this run legitimately marked the data fresh.
+    window.__trackerTest.resetGarminThrottle();
+    window.__trackerTest.remoteRuntime.user = { id: 'u1', email: 'me@example.com' };
+    window.ensureSupabaseClient = async () => makeClient([{
+      user_id: 'u1',
+      updated_at: '2026-08-17T04:00:00Z',
+      payload: { trackerPayloadPatch: { entries: { '2026-08-16': { steps: 8000 } } } }
+    }]);
+    out.firstPull = (await window.autoPullGarmin()).reason;
+
+    // Immediately again -> throttled, no second network call.
+    out.secondPull = (await window.autoPullGarmin()).skipped;
+
+    // force bypasses the throttle.
+    out.forced = (await window.autoPullGarmin({ force: true })).reason;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    window.__trackerTest.remoteRuntime.user = null;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('auto-pull silent when signed out', auto.signedOut === 'not-ready', String(auto.signedOut));
+  check('auto-pull posts no warning when signed out', !auto.signedOutStatus,
+    String(auto.signedOutStatus).slice(0, 60));
+  check('auto-pull fetches when ready', auto.firstPull === 'ok', String(auto.firstPull));
+  check('auto-pull throttles repeat calls', auto.secondPull === 'throttled', String(auto.secondPull));
+  check('auto-pull force bypasses throttle', auto.forced === 'ok', String(auto.forced));
+
+  const steps = await page.evaluate(() => {
+    const e = window.__trackerTest.getState().entries['2026-08-16'];
+    return e && e.steps;
+  });
+  check('auto-pull applied data to the entry', String(steps) === '8000', `steps=${steps}`);
+
   const w = page.locator('#weightInput');
   check('weight input present', (await w.count()) === 1);
   const inputmode = await w.getAttribute('inputmode');
