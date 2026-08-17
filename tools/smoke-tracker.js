@@ -48,6 +48,13 @@ function check(name, pass, detail) {
     (await page.locator('[data-action="remote-push"]').count()) === 1);
   check('explicit tracker download action present',
     (await page.locator('[data-action="remote-pull"]').count()) === 1);
+  const headerSync = page.locator('#syncIndicator');
+  check('header sync indicator is visible', await headerSync.isVisible());
+  await headerSync.click();
+  check('sync sheet opens from header', await page.locator('#syncDialog').evaluate((el) => el.open));
+  check('sync sheet contains one Sync now action',
+    (await page.locator('#syncDialog [data-action="sync-now"]').count()) === 1);
+  await page.locator('#syncDialog [data-action="close-sync"]').click();
 
   await page.evaluate(() => {
     window.__trackerTest.remoteRuntime.dirty = false;
@@ -380,6 +387,7 @@ function check(name, pass, detail) {
     window.ensureSupabaseClient = async () => client;
     runtime.user = { id: 'u1', email: 'me@example.com' };
     runtime.dirty = false;
+    runtime.entrySyncAvailable = false;
     window.__trackerTest.resetStateThrottle();
 
     const first = await window.autoPullRemoteState();
@@ -404,17 +412,11 @@ function check(name, pass, detail) {
     out.localLunchAfterPull =
       window.__trackerTest.getState().entries[dateKey].meals.lunch.details;
 
-    // An unsent laptop edit must not be silently replaced by auto-pull.
-    window.__trackerTest.getState().entries[dateKey].meals.breakfast.details = 'Unsynced laptop edit';
-    runtime.dirty = true;
-    window.__trackerTest.resetStateThrottle();
-    out.dirty = (await window.autoPullRemoteState()).skipped;
-    out.afterDirty = window.__trackerTest.getState().entries[dateKey].meals.breakfast.details;
-
     window.ensureSupabaseClient = origEnsure;
     window.hasRemoteConfig = origHasCfg;
     runtime.user = null;
     runtime.dirty = false;
+    runtime.entrySyncAvailable = null;
     return out;
   }).catch((e) => ({ err: e.message }));
 
@@ -431,10 +433,255 @@ function check(name, pass, detail) {
     String(statePull.protectedMessage));
   check('blocked download preserves local meal',
     statePull.localLunchAfterPull === 'Local-only lunch', String(statePull.localLunchAfterPull));
-  check('tracker auto-pull protects unsent local edits', statePull.dirty === 'local-changes',
-    String(statePull.dirty));
-  check('protected local edit remains intact', statePull.afterDirty === 'Unsynced laptop edit',
-    String(statePull.afterDirty));
+
+  // Revisioned per-day sync: different dates merge; the same date conflicts.
+  const perDay = await page.evaluate(async () => {
+    const out = {};
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+    const runtime = window.__trackerTest.remoteRuntime;
+    const st = window.__trackerTest.getState();
+    const cloudDate = '2026-08-15';
+    const localDate = '2026-08-16';
+
+    const cloudEntry = JSON.parse(JSON.stringify(st.entries[localDate]));
+    Object.values(cloudEntry.meals).forEach((meal) => {
+      meal.details = '';
+      meal.caloriesOverride = '';
+      meal.macroOverride = '';
+    });
+    cloudEntry.meals.breakfast.details = 'Cloud breakfast';
+
+    const localEntry = JSON.parse(JSON.stringify(st.entries[localDate]));
+    Object.values(localEntry.meals).forEach((meal) => {
+      meal.details = '';
+      meal.caloriesOverride = '';
+      meal.macroOverride = '';
+    });
+    localEntry.meals.lunch.details = 'Local lunch';
+
+    const rows = new Map([
+      [cloudDate, {
+        entry_date: cloudDate,
+        payload: cloudEntry,
+        revision: 1,
+        updated_at: '2026-08-17T10:00:00Z'
+      }]
+    ]);
+
+    function tableApi(table) {
+      if (table === 'fitness_tracker_entries') {
+        const copy = (value) => JSON.parse(JSON.stringify(value));
+        return {
+          select: () => {
+            let filterDate = null;
+            const api = {
+              limit: async (count) => ({
+                data: copy(Array.from(rows.values()).slice(0, count)),
+                error: null
+              }),
+              order: async () => ({
+                data: copy(Array.from(rows.values()).sort((a, b) =>
+                  a.entry_date.localeCompare(b.entry_date)
+                )),
+                error: null
+              }),
+              eq: (_column, value) => {
+                filterDate = value;
+                return api;
+              },
+              maybeSingle: async () => ({
+                data: filterDate && rows.get(filterDate) ? copy(rows.get(filterDate)) : null,
+                error: null
+              })
+            };
+            return api;
+          },
+          upsert: (input) => ({
+            select: () => ({
+              single: async () => {
+                const previous = rows.get(input.entry_date);
+                const row = {
+                  entry_date: input.entry_date,
+                  payload: JSON.parse(JSON.stringify(input.payload)),
+                  revision: previous ? previous.revision + 1 : 1,
+                  updated_at: '2026-08-17T11:30:00Z'
+                };
+                rows.set(input.entry_date, row);
+                return { data: row, error: null };
+              }
+            })
+          })
+        };
+      }
+      return {
+        select: () => ({
+          maybeSingle: async () => ({ data: null, error: null })
+        })
+      };
+    }
+
+    window.hasRemoteConfig = () => true;
+    window.ensureSupabaseClient = async () => ({ from: tableApi });
+    runtime.user = { id: 'u1', email: 'me@example.com' };
+    runtime.entrySyncAvailable = null;
+    runtime.conflicts = [];
+    runtime.dirty = false;
+    st.entries = { [localDate]: localEntry };
+    st.selectedDate = localDate;
+    st.syncMeta = {
+      dirty: true,
+      entries: {
+        [localDate]: {
+          dirty: true,
+          localUpdatedAt: '2026-08-17T11:00:00Z',
+          cloudRevision: 0,
+          cloudUpdatedAt: ''
+        }
+      }
+    };
+
+    const first = await window.syncTrackerEntries({ silent: true });
+    out.firstSuccess = first.success;
+    out.uploaded = first.uploaded;
+    out.downloaded = first.downloaded;
+    out.cloudBreakfast = st.entries[cloudDate]?.meals?.breakfast?.details;
+    out.localLunchInCloud = rows.get(localDate)?.payload?.meals?.lunch?.details;
+
+    // Both devices now change the same day from revision 1.
+    st.entries[cloudDate].meals.breakfast.details = 'Local changed breakfast';
+    window.markEntryDirty(cloudDate);
+    const remoteChanged = rows.get(cloudDate);
+    remoteChanged.payload.meals.breakfast.details = 'Other device breakfast';
+    remoteChanged.revision = 2;
+    remoteChanged.updated_at = '2026-08-17T12:00:00Z';
+
+    const second = await window.syncTrackerEntries({ silent: true });
+    out.conflictReason = second.reason;
+    out.conflictDate = second.conflicts?.[0];
+    out.localPreserved = st.entries[cloudDate].meals.breakfast.details;
+    out.remotePreserved = rows.get(cloudDate).payload.meals.breakfast.details;
+    out.conflictButtons = document.querySelectorAll(
+      '#syncConflictArea [data-action="resolve-sync-conflict"]'
+    ).length;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    runtime.user = null;
+    runtime.entrySyncAvailable = null;
+    runtime.conflicts = [];
+    runtime.dirty = false;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('per-day sync succeeds', perDay.firstSuccess === true, String(perDay.firstSuccess));
+  check('different cloud date downloads independently', perDay.cloudBreakfast === 'Cloud breakfast',
+    String(perDay.cloudBreakfast));
+  check('different local date uploads independently', perDay.localLunchInCloud === 'Local lunch',
+    String(perDay.localLunchInCloud));
+  check('same-date concurrent edits create conflict', perDay.conflictReason === 'conflict',
+    String(perDay.conflictReason));
+  check('conflict identifies the changed date', perDay.conflictDate === '2026-08-15',
+    String(perDay.conflictDate));
+  check('conflict preserves local version', perDay.localPreserved === 'Local changed breakfast',
+    String(perDay.localPreserved));
+  check('conflict preserves remote version', perDay.remotePreserved === 'Other device breakfast',
+    String(perDay.remotePreserved));
+  check('sync sheet offers both conflict choices', perDay.conflictButtons === 2,
+    String(perDay.conflictButtons));
+
+  const migration = await page.evaluate(async () => {
+    const out = {};
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+    const runtime = window.__trackerTest.remoteRuntime;
+    const st = window.__trackerTest.getState();
+    const dateKey = '2026-08-14';
+    const legacyEntry = JSON.parse(JSON.stringify(st.entries['2026-08-15']));
+    legacyEntry.meals.breakfast.details = 'Migrated legacy breakfast';
+    const rows = new Map();
+
+    const client = {
+      from: (table) => {
+        if (table === 'fitness_tracker_state') {
+          return {
+            select: () => ({
+              maybeSingle: async () => ({
+                data: {
+                  payload: {
+                    version: st.version,
+                    profile: st.profile,
+                    entries: { [dateKey]: legacyEntry }
+                  }
+                },
+                error: null
+              })
+            })
+          };
+        }
+        return {
+          select: () => ({
+            limit: async () => ({
+              data: Array.from(rows.values()).slice(0, 1),
+              error: null
+            }),
+            order: async () => ({
+              data: Array.from(rows.values()),
+              error: null
+            })
+          }),
+          upsert: (input) => ({
+            select: () => {
+              if (Array.isArray(input)) {
+                const inserted = input.map((item) => {
+                  const row = {
+                    entry_date: item.entry_date,
+                    payload: JSON.parse(JSON.stringify(item.payload)),
+                    revision: 1,
+                    updated_at: '2026-08-17T12:30:00Z'
+                  };
+                  rows.set(item.entry_date, row);
+                  return row;
+                });
+                return Promise.resolve({ data: inserted, error: null });
+              }
+              return {
+                single: async () => ({ data: null, error: new Error('unexpected single upsert') })
+              };
+            }
+          })
+        };
+      }
+    };
+
+    window.hasRemoteConfig = () => true;
+    window.ensureSupabaseClient = async () => client;
+    runtime.user = { id: 'u1', email: 'me@example.com' };
+    runtime.entrySyncAvailable = null;
+    runtime.conflicts = [];
+    runtime.dirty = false;
+    st.entries = {};
+    st.syncMeta = { dirty: false, entries: {} };
+
+    const result = await window.syncTrackerEntries({ silent: true });
+    out.success = result.success;
+    out.migrated = rows.size;
+    out.details = st.entries[dateKey]?.meals?.breakfast?.details;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    runtime.user = null;
+    runtime.entrySyncAvailable = null;
+    runtime.conflicts = [];
+    runtime.dirty = false;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('legacy cloud row migrates automatically', migration.success === true,
+    JSON.stringify(migration));
+  check('migration creates per-day row', migration.migrated === 1, String(migration.migrated));
+  check('migrated day is applied locally', migration.details === 'Migrated legacy breakfast',
+    String(migration.details));
 
   const w = page.locator('#weightInput');
   check('weight input present', (await w.count()) === 1);

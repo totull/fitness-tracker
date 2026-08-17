@@ -684,6 +684,79 @@
       margin-top: 10px;
     }
 
+    .sync-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--text);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .sync-indicator::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .sync-indicator.success::before { background: var(--success); }
+    .sync-indicator.warn::before { background: var(--warn); }
+    .sync-indicator.danger::before { background: var(--danger); }
+    .sync-indicator.primary::before { background: var(--primary); }
+
+    .sync-dialog {
+      width: min(440px, calc(100% - 24px));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 0;
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+
+    .sync-dialog::backdrop {
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(3px);
+    }
+
+    .sync-dialog-content {
+      display: grid;
+      gap: 14px;
+      padding: 20px;
+    }
+
+    .sync-dialog-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .sync-detail-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .sync-detail {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--surface-soft);
+    }
+
+    .sync-detail span {
+      color: var(--muted);
+    }
+
     .empty-state {
       padding: 14px;
       border-radius: 16px;
@@ -788,6 +861,9 @@
             <button class="mini-button" type="button" data-action="today">Today</button>
             <button class="mini-button" type="button" data-action="next-day">Next day</button>
           </div>
+          <button class="sync-indicator" id="syncIndicator" type="button" data-action="open-sync">
+            Local only
+          </button>
           <div class="header-stats" id="headerStats"></div>
         </div>
       </div>
@@ -808,6 +884,35 @@
       <section class="view" id="summaryView"></section>
     </main>
   </div>
+
+  <dialog class="sync-dialog" id="syncDialog">
+    <div class="sync-dialog-content">
+      <div class="sync-dialog-header">
+        <div>
+          <h2>Cloud sync</h2>
+          <p class="muted" id="syncDialogStatus">Checking status…</p>
+        </div>
+        <button class="ghost-button" type="button" data-action="close-sync">Close</button>
+      </div>
+      <div class="sync-detail-list">
+        <div class="sync-detail"><span>Account</span><strong id="syncAccount">Not signed in</strong></div>
+        <div class="sync-detail"><span>This device uploaded</span><strong id="syncUploaded">Not yet</strong></div>
+        <div class="sync-detail"><span>Cloud downloaded</span><strong id="syncDownloaded">Not yet</strong></div>
+        <div class="sync-detail"><span>Garmin captured</span><strong id="syncGarminCaptured">Not yet</strong></div>
+      </div>
+      <div id="syncConflictArea"></div>
+      <button class="action-button" id="syncNowButton" type="button" data-action="sync-now">
+        Sync now
+      </button>
+      <details>
+        <summary>Advanced sync settings</summary>
+        <p class="muted" style="margin:10px 0;">
+          Supabase setup and directional recovery controls remain under Summary.
+        </p>
+        <button class="mini-button" type="button" data-action="open-sync-settings">Open settings</button>
+      </details>
+    </div>
+  </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./garmin-importer.js"></script>
@@ -1063,6 +1168,7 @@
     ];
 
     const REMOTE_TABLE = "fitness_tracker_state";
+    const REMOTE_ENTRIES_TABLE = "fitness_tracker_entries";
     const REMOTE_GARMIN_TABLE = "fitness_tracker_garmin_sync";
     const REMOTE_REDIRECT = typeof window !== "undefined"
       ? window.location.href.split("#")[0].split("?")[0]
@@ -1105,7 +1211,15 @@
     // syncMeta is local-only and deliberately excluded from buildRemotePayload.
     // Legacy browsers with saved data are treated as dirty once so an automatic
     // pull cannot erase entries that may never have reached Supabase.
-    state.syncMeta = state.syncMeta || { dirty: Boolean(state.lastSavedAt) };
+    state.syncMeta = state.syncMeta || { dirty: Boolean(state.lastSavedAt), entries: {} };
+    state.syncMeta.entries = state.syncMeta.entries || {};
+    if (state.syncMeta.dirty && !Object.keys(state.syncMeta.entries).length) {
+      state.syncMeta.entries[state.selectedDate] = {
+        dirty: true,
+        localUpdatedAt: state.lastSavedAt || new Date().toISOString(),
+        cloudRevision: 0
+      };
+    }
     const remoteRuntime = {
       client: null,
       configKey: "",
@@ -1117,7 +1231,10 @@
       syncTimer: null,
       unsubscribe: null,
       pulling: false,
-      dirty: Boolean(state.syncMeta.dirty)
+      dirty: Boolean(state.syncMeta.dirty),
+      syncing: false,
+      entrySyncAvailable: null,
+      conflicts: []
     };
 
     function cloneData(value) {
@@ -1441,10 +1558,49 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
+    function getEntrySyncMeta(dateKey) {
+      state.syncMeta = state.syncMeta || { dirty: false, entries: {} };
+      state.syncMeta.entries = state.syncMeta.entries || {};
+      state.syncMeta.entries[dateKey] = state.syncMeta.entries[dateKey] || {
+        dirty: false,
+        localUpdatedAt: "",
+        cloudRevision: 0,
+        cloudUpdatedAt: ""
+      };
+      return state.syncMeta.entries[dateKey];
+    }
+
+    function refreshDirtyState() {
+      const entryMeta = Object.values(state.syncMeta?.entries || {});
+      state.syncMeta.dirty = entryMeta.some((meta) => meta?.dirty);
+      remoteRuntime.dirty = state.syncMeta.dirty;
+    }
+
+    function markEntryDirty(dateKey) {
+      const meta = getEntrySyncMeta(dateKey);
+      meta.dirty = true;
+      meta.localUpdatedAt = new Date().toISOString();
+      refreshDirtyState();
+    }
+
+    function markEntrySynced(dateKey, row) {
+      const meta = getEntrySyncMeta(dateKey);
+      meta.dirty = false;
+      meta.cloudRevision = Number(row?.revision || meta.cloudRevision || 0);
+      meta.cloudUpdatedAt = row?.updated_at || new Date().toISOString();
+      refreshDirtyState();
+    }
+
+    function dirtyEntryDates() {
+      return Object.entries(state.syncMeta?.entries || {})
+        .filter(([, meta]) => meta?.dirty)
+        .map(([dateKey]) => dateKey)
+        .filter((dateKey) => state.entries[dateKey]);
+    }
+
     function saveState(options = {}) {
       if (options.queueRemote !== false) {
-        remoteRuntime.dirty = true;
-        state.syncMeta = { dirty: true };
+        markEntryDirty(options.dateKey || state.selectedDate);
       }
       persistLocalState();
       renderSaveNote();
@@ -1469,6 +1625,7 @@
       remoteRuntime.status = status;
       remoteRuntime.tone = tone;
       renderSaveNote();
+      renderSyncIndicator();
     }
 
     const garminRuntime = { status: "", tone: "primary", syncing: false };
@@ -1489,6 +1646,8 @@
       remoteRuntime.lastStatePushAt = null;
       remoteRuntime.lastStatePullAt = null;
       remoteRuntime.dirty = Boolean(state.syncMeta?.dirty);
+      remoteRuntime.entrySyncAvailable = null;
+      remoteRuntime.conflicts = [];
       clearTimeout(remoteRuntime.syncTimer);
       remoteRuntime.syncTimer = null;
     }
@@ -1523,6 +1682,9 @@
         if (remoteRuntime.user) {
           setRemoteStatus(`Signed in as ${remoteRuntime.user.email || state.remote.email}`, "success");
           render();
+          if (_event === "SIGNED_IN") {
+            setTimeout(() => syncTracker({ silent: true }), 0);
+          }
         } else if (hasRemoteConfig()) {
           setRemoteStatus("Configured. Send a magic link to sign in.", "warn");
           render();
@@ -1735,8 +1897,8 @@
         }
 
         remoteRuntime.lastStatePushAt = data.updated_at || new Date().toISOString();
-        remoteRuntime.dirty = false;
-        state.syncMeta = { dirty: false };
+        Object.values(state.syncMeta.entries || {}).forEach((meta) => { meta.dirty = false; });
+        refreshDirtyState();
         persistLocalState();
         setRemoteStatus(
           `Uploaded and verified ${stored.mealCount} meal${stored.mealCount === 1 ? "" : "s"} and ` +
@@ -1792,8 +1954,7 @@
           const localSummary = summarizeRemoteDay(buildRemotePayload());
           const cloudSummary = summarizeRemoteDay(data.payload);
           if (!options.force && isSummaryRicher(localSummary, cloudSummary)) {
-            remoteRuntime.dirty = true;
-            state.syncMeta = { dirty: true };
+            markEntryDirty(state.selectedDate);
             persistLocalState();
             const message =
               `Download blocked to protect this browser: it has ${localSummary.mealCount} meals and ` +
@@ -1811,8 +1972,8 @@
           saveState({ queueRemote: false });
           remoteRuntime.pulling = false;
           remoteRuntime.lastStatePullAt = data.updated_at || new Date().toISOString();
-          remoteRuntime.dirty = false;
-          state.syncMeta = { dirty: false };
+          Object.values(state.syncMeta.entries || {}).forEach((meta) => { meta.dirty = false; });
+          refreshDirtyState();
           persistLocalState();
           const stored = summarizeRemoteDay(data.payload);
           setRemoteStatus(
@@ -1831,6 +1992,284 @@
         render();
       }
       return { hasData: Boolean(pulledData?.payload), updatedAt: pulledData?.updated_at || null };
+    }
+
+    function isMissingEntriesTableError(error) {
+      return /fitness_tracker_entries|could not find the table|schema cache|relation .*does not exist/i
+        .test(String(error?.message || error || ""));
+    }
+
+    async function supportsEntrySync(client) {
+      if (remoteRuntime.entrySyncAvailable !== null) {
+        return remoteRuntime.entrySyncAvailable;
+      }
+      const { error } = await client
+        .from(REMOTE_ENTRIES_TABLE)
+        .select("entry_date")
+        .limit(1);
+      if (error) {
+        if (isMissingEntriesTableError(error)) {
+          remoteRuntime.entrySyncAvailable = false;
+          return false;
+        }
+        throw error;
+      }
+      remoteRuntime.entrySyncAvailable = true;
+      return true;
+    }
+
+    async function migrateLegacyEntries(client) {
+      const { data: existing, error: existingError } = await client
+        .from(REMOTE_ENTRIES_TABLE)
+        .select("entry_date")
+        .limit(1);
+      if (existingError) {
+        throw existingError;
+      }
+      if (existing?.length) {
+        return { migrated: 0 };
+      }
+
+      const { data: legacy, error: legacyError } = await client
+        .from(REMOTE_TABLE)
+        .select("payload")
+        .maybeSingle();
+      if (legacyError) {
+        throw legacyError;
+      }
+      const entries = legacy?.payload?.entries;
+      if (!entries || typeof entries !== "object") {
+        return { migrated: 0 };
+      }
+
+      const rows = Object.entries(entries)
+        .filter(([dateKey, entry]) => /^\d{4}-\d{2}-\d{2}$/.test(dateKey) && entry)
+        .map(([dateKey, entry]) => ({
+          user_id: remoteRuntime.user.id,
+          entry_date: dateKey,
+          payload: entry
+        }));
+      if (!rows.length) {
+        return { migrated: 0 };
+      }
+
+      const { data, error } = await client
+        .from(REMOTE_ENTRIES_TABLE)
+        .upsert(rows, { onConflict: "user_id,entry_date" })
+        .select("entry_date, revision, updated_at");
+      if (error) {
+        throw error;
+      }
+      return { migrated: rows.length };
+    }
+
+    async function pullEntryRows(client) {
+      const { data, error } = await client
+        .from(REMOTE_ENTRIES_TABLE)
+        .select("entry_date, payload, revision, updated_at")
+        .order("entry_date", { ascending: true });
+      if (error) {
+        throw error;
+      }
+
+      let downloaded = 0;
+      const conflicts = [];
+      (data || []).forEach((row) => {
+        const dateKey = row.entry_date;
+        const meta = getEntrySyncMeta(dateKey);
+        const cloudRevision = Number(row.revision || 0);
+        if (meta.dirty) {
+          if (meta.cloudRevision > 0 && cloudRevision > meta.cloudRevision) {
+            conflicts.push(dateKey);
+          }
+          return;
+        }
+        state.entries[dateKey] = row.payload;
+        ensureEntry(dateKey);
+        markEntrySynced(dateKey, row);
+        downloaded += 1;
+      });
+      if (downloaded) {
+        remoteRuntime.lastStatePullAt = new Date().toISOString();
+      }
+      return { downloaded, conflicts };
+    }
+
+    async function pushDirtyEntryRows(client) {
+      let uploaded = 0;
+      const conflicts = [];
+      for (const dateKey of dirtyEntryDates()) {
+        const meta = getEntrySyncMeta(dateKey);
+        const { data: existing, error: readError } = await client
+          .from(REMOTE_ENTRIES_TABLE)
+          .select("payload, revision, updated_at")
+          .eq("entry_date", dateKey)
+          .maybeSingle();
+        if (readError) {
+          throw readError;
+        }
+
+        const existingRevision = Number(existing?.revision || 0);
+        const localSummary = summarizeRemoteDay({ entries: { [dateKey]: state.entries[dateKey] } }, dateKey);
+        const cloudSummary = summarizeRemoteDay({ entries: { [dateKey]: existing?.payload } }, dateKey);
+        const revisionConflict = existingRevision > Number(meta.cloudRevision || 0);
+        const legacyRecoveryCanWin = Number(meta.cloudRevision || 0) === 0 &&
+          isSummaryRicher(localSummary, cloudSummary);
+        if (revisionConflict && !legacyRecoveryCanWin) {
+          conflicts.push(dateKey);
+          continue;
+        }
+
+        const { data, error } = await client
+          .from(REMOTE_ENTRIES_TABLE)
+          .upsert({
+            user_id: remoteRuntime.user.id,
+            entry_date: dateKey,
+            payload: state.entries[dateKey]
+          }, {
+            onConflict: "user_id,entry_date"
+          })
+          .select("entry_date, revision, updated_at")
+          .single();
+        if (error) {
+          throw error;
+        }
+        markEntrySynced(dateKey, data);
+        uploaded += 1;
+      }
+      if (uploaded) {
+        remoteRuntime.lastStatePushAt = new Date().toISOString();
+      }
+      return { uploaded, conflicts };
+    }
+
+    async function syncTrackerEntries(options = {}) {
+      if (!hasRemoteConfig() || !remoteRuntime.user) {
+        return { success: false, reason: "not-ready" };
+      }
+      if (remoteRuntime.syncing) {
+        return { success: false, reason: "busy" };
+      }
+
+      remoteRuntime.syncing = true;
+      setRemoteStatus("Syncing tracker…", "primary");
+      if (!options.silent) {
+        render();
+      }
+      try {
+        const client = await ensureSupabaseClient();
+        if (!await supportsEntrySync(client)) {
+          return { success: false, reason: "missing-table" };
+        }
+
+        const migration = await migrateLegacyEntries(client);
+        const pulled = await pullEntryRows(client);
+        const pushed = await pushDirtyEntryRows(client);
+        const conflicts = Array.from(new Set([...pulled.conflicts, ...pushed.conflicts]));
+        remoteRuntime.conflicts = conflicts;
+        persistLocalState();
+
+        if (conflicts.length) {
+          setRemoteStatus(
+            `Sync needs attention for ${conflicts.map(formatHumanDate).join(", ")}. ` +
+            "Both devices changed the same day.",
+            "danger"
+          );
+          return { success: false, reason: "conflict", conflicts };
+        }
+
+        const migratedText = migration.migrated
+          ? ` Migrated ${migration.migrated} existing day${migration.migrated === 1 ? "" : "s"}.`
+          : "";
+        setRemoteStatus(
+          `Synced ${pushed.uploaded} change${pushed.uploaded === 1 ? "" : "s"}; ` +
+          `checked ${pulled.downloaded} cloud day${pulled.downloaded === 1 ? "" : "s"}.${migratedText}`,
+          "success"
+        );
+        return { success: true, uploaded: pushed.uploaded, downloaded: pulled.downloaded };
+      } catch (error) {
+        remoteRuntime.entrySyncAvailable = isMissingEntriesTableError(error)
+          ? false
+          : remoteRuntime.entrySyncAvailable;
+        setRemoteStatus(error.message || "Tracker sync failed.", "danger");
+        return { success: false, reason: "error", message: error.message || String(error) };
+      } finally {
+        remoteRuntime.syncing = false;
+        if (!options.silent) {
+          render();
+        } else {
+          renderSaveNote();
+          renderSyncIndicator();
+        }
+      }
+    }
+
+    async function syncTracker(options = {}) {
+      const result = await syncTrackerEntries(options);
+      if (result.reason !== "missing-table") {
+        return result;
+      }
+      setRemoteStatus(
+        "Per-day sync is not installed yet. Run the latest supabase-schema.sql; using guarded legacy sync meanwhile.",
+        "warn"
+      );
+      return remoteRuntime.dirty
+        ? pushRemoteState(options)
+        : pullRemoteState(options);
+    }
+
+    async function resolveEntryConflict(dateKey, choice) {
+      if (!remoteRuntime.user || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        return;
+      }
+      remoteRuntime.syncing = true;
+      setRemoteStatus(`Resolving ${formatHumanDate(dateKey)}…`, "primary");
+      render();
+      try {
+        const client = await ensureSupabaseClient();
+        if (choice === "local") {
+          const { data, error } = await client
+            .from(REMOTE_ENTRIES_TABLE)
+            .upsert({
+              user_id: remoteRuntime.user.id,
+              entry_date: dateKey,
+              payload: state.entries[dateKey]
+            }, {
+              onConflict: "user_id,entry_date"
+            })
+            .select("entry_date, revision, updated_at")
+            .single();
+          if (error) {
+            throw error;
+          }
+          markEntrySynced(dateKey, data);
+          remoteRuntime.lastStatePushAt = new Date().toISOString();
+        } else {
+          const { data, error } = await client
+            .from(REMOTE_ENTRIES_TABLE)
+            .select("entry_date, payload, revision, updated_at")
+            .eq("entry_date", dateKey)
+            .maybeSingle();
+          if (error) {
+            throw error;
+          }
+          if (!data?.payload) {
+            throw new Error(`No cloud entry exists for ${formatHumanDate(dateKey)}.`);
+          }
+          state.entries[dateKey] = data.payload;
+          ensureEntry(dateKey);
+          markEntrySynced(dateKey, data);
+          remoteRuntime.lastStatePullAt = new Date().toISOString();
+        }
+        remoteRuntime.conflicts = remoteRuntime.conflicts.filter((item) => item !== dateKey);
+        persistLocalState();
+        setRemoteStatus(`Conflict resolved for ${formatHumanDate(dateKey)}.`, "success");
+      } catch (error) {
+        setRemoteStatus(error.message || "Unable to resolve sync conflict.", "danger");
+      } finally {
+        remoteRuntime.syncing = false;
+        render();
+      }
     }
 
     async function pullGarminRemotePayload(options = {}) {
@@ -1972,17 +2411,13 @@
     const GARMIN_AUTO_PULL_INTERVAL_MS = 15 * 60 * 1000;
     let lastGarminAutoPullAt = 0;
 
-    // Refresh meals and check-ins when returning to an existing tab. Do not
-    // replace local state while an upload is pending or has failed.
+    // Refresh meals and check-ins when returning to an existing tab.
     async function autoPullRemoteState({ force = false } = {}) {
       if (!hasRemoteConfig() || !remoteRuntime.user) {
         return { skipped: "not-ready" };
       }
-      if (remoteRuntime.pulling) {
+      if (remoteRuntime.pulling || remoteRuntime.syncing) {
         return { skipped: "busy" };
-      }
-      if (remoteRuntime.dirty) {
-        return { skipped: "local-changes" };
       }
       const now = Date.now();
       if (!force && now - lastStateAutoPullAt < STATE_AUTO_PULL_INTERVAL_MS) {
@@ -1990,7 +2425,7 @@
       }
 
       lastStateAutoPullAt = now;
-      const result = await pullRemoteState({ silent: true });
+      const result = await syncTracker({ silent: true });
       render();
       return result;
     }
@@ -2061,11 +2496,11 @@
 
       clearTimeout(remoteRuntime.syncTimer);
       remoteRuntime.syncTimer = setTimeout(() => {
-        pushRemoteState({ silent: true }).catch((error) => {
+        syncTracker({ silent: true }).catch((error) => {
           setRemoteStatus(error.message || "Background sync failed.", "danger");
           render();
         });
-      }, 700);
+      }, 1200);
     }
 
     function getPlanIndex(dateKey) {
@@ -3342,6 +3777,82 @@
       `).join("");
     }
 
+    function getSyncIndicatorModel() {
+      if (!hasRemoteConfig()) {
+        return { label: "Local only", tone: "primary" };
+      }
+      if (!remoteRuntime.user) {
+        return { label: "Sign in to sync", tone: "warn" };
+      }
+      if (remoteRuntime.syncing) {
+        return { label: "Saving…", tone: "primary" };
+      }
+      if (remoteRuntime.conflicts.length || remoteRuntime.tone === "danger") {
+        return { label: "Sync issue", tone: "danger" };
+      }
+      const pending = dirtyEntryDates().length;
+      if (pending) {
+        return {
+          label: pending === 1 ? "Changes on this device" : `${pending} days waiting`,
+          tone: "warn"
+        };
+      }
+      return { label: "Synced", tone: "success" };
+    }
+
+    function renderSyncIndicator() {
+      const indicator = document.getElementById("syncIndicator");
+      if (!indicator) {
+        return;
+      }
+      const model = getSyncIndicatorModel();
+      indicator.textContent = model.label;
+      indicator.className = `sync-indicator ${model.tone}`;
+      renderSyncDialog();
+    }
+
+    function renderSyncDialog() {
+      const status = document.getElementById("syncDialogStatus");
+      if (!status) {
+        return;
+      }
+      const model = getSyncIndicatorModel();
+      status.textContent = `${model.label}. ${remoteRuntime.status}`;
+      document.getElementById("syncAccount").textContent = remoteAccountLabel();
+      document.getElementById("syncUploaded").textContent = remoteRuntime.lastStatePushAt
+        ? formatDateTime(remoteRuntime.lastStatePushAt)
+        : "Not yet";
+      document.getElementById("syncDownloaded").textContent = remoteRuntime.lastStatePullAt
+        ? formatDateTime(remoteRuntime.lastStatePullAt)
+        : "Not yet";
+      const garminAt = latestGarminSyncAt();
+      document.getElementById("syncGarminCaptured").textContent = garminAt
+        ? formatDateTime(garminAt)
+        : "Not yet";
+      const conflictArea = document.getElementById("syncConflictArea");
+      conflictArea.innerHTML = remoteRuntime.conflicts.length
+        ? remoteRuntime.conflicts.map((dateKey) => `
+          <div class="garmin-status danger">
+            <strong>${formatHumanDate(dateKey)} changed on both devices.</strong>
+            <p style="margin-top:6px;">Choose which version to keep for this day.</p>
+            <div class="inline-actions" style="margin-top:8px;">
+              <button class="mini-button" type="button"
+                data-action="resolve-sync-conflict" data-choice="local" data-date="${dateKey}">
+                Keep this device
+              </button>
+              <button class="mini-button" type="button"
+                data-action="resolve-sync-conflict" data-choice="cloud" data-date="${dateKey}">
+                Keep cloud version
+              </button>
+            </div>
+          </div>
+        `).join("")
+        : "";
+      const button = document.getElementById("syncNowButton");
+      button.disabled = remoteRuntime.syncing || !hasRemoteConfig() || !remoteRuntime.user;
+      button.textContent = remoteRuntime.syncing ? "Syncing…" : "Sync now";
+    }
+
     function renderSaveNote() {
       const note = document.getElementById("saveNote");
       const localText = !state.lastSavedAt
@@ -4516,62 +5027,55 @@
             </div>
           </div>
 
-          <div class="card">
+          <div class="card" id="syncSettingsCard">
             <div class="card-header">
               <div>
-                <h2>Remote sync with Supabase</h2>
-                <p class="muted">Use the same Supabase project and email on each device to keep one shared tracker.</p>
+                <h2>Cloud sync settings</h2>
+                <p class="muted">Normal sync is automatic. These controls are only for setup and recovery.</p>
               </div>
               <span class="tag ${remoteRuntime.user ? "success" : "warn"}">${remoteAccountLabel()}</span>
             </div>
-            <div class="grid">
-              <div class="field-group">
-                <label>Supabase URL</label>
-                <input class="input" type="text" value="${escapeValue(state.remote.url)}" data-remote-field="url" placeholder="https://your-project.supabase.co">
+            <p class="garmin-status ${remoteRuntime.tone}">
+              <strong>Last operation:</strong> ${escapeText(remoteStatusLabel())}
+            </p>
+            <div class="metric-grid" style="margin-top:12px;">
+              <div class="metric">
+                <span class="muted">Tracker uploaded</span>
+                <strong>${lastStatePush}</strong>
               </div>
-              <div class="field-group">
-                <label>Supabase anon key</label>
-                <textarea class="textarea" data-remote-field="anonKey" placeholder="Paste the public anon key here">${escapeText(state.remote.anonKey)}</textarea>
+              <div class="metric">
+                <span class="muted">Tracker downloaded</span>
+                <strong>${lastStatePull}</strong>
               </div>
-              <div class="field-group">
-                <label>Email for magic link sign-in</label>
-                <input class="input" type="email" value="${escapeValue(state.remote.email)}" data-remote-field="email" placeholder="you@example.com">
-              </div>
-              <div class="inline-actions">
-                <button class="action-button" type="button" data-action="remote-push">
-                  Upload this browser → cloud
-                </button>
-                <button class="ghost-button" type="button" data-action="remote-pull">
-                  Download cloud → this browser
-                </button>
-              </div>
-              <details>
-                <summary>Account controls</summary>
-                <div class="inline-actions" style="margin-top:10px;">
-                <button class="mini-button" type="button" data-action="remote-magic-link">Send magic link</button>
-                <button class="mini-button" type="button" data-action="remote-restore-session">Restore session</button>
-                <button class="ghost-button" type="button" data-action="remote-signout">Sign out</button>
-                </div>
-              </details>
-              <p class="garmin-status ${remoteRuntime.tone}">
-                <strong>Last operation:</strong> ${escapeText(remoteStatusLabel())}
-              </p>
-              <div class="metric-grid">
-                <div class="metric">
-                  <span class="muted">Cloud account</span>
-                  <strong>${remoteAccountLabel()}</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Tracker uploaded</span>
-                  <strong>${lastStatePush}</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Tracker downloaded</span>
-                  <strong>${lastStatePull}</strong>
-                </div>
-              </div>
-              <p class="muted">Run the SQL in <code>supabase-schema.sql</code> once inside Supabase SQL Editor, then enter the project URL and anon key here.</p>
             </div>
+            <details style="margin-top:14px;">
+              <summary>Advanced setup and recovery</summary>
+              <div class="grid" style="margin-top:12px;">
+                <div class="field-group">
+                  <label>Supabase URL</label>
+                  <input class="input" type="text" value="${escapeValue(state.remote.url)}" data-remote-field="url" placeholder="https://your-project.supabase.co">
+                </div>
+                <div class="field-group">
+                  <label>Supabase anon key</label>
+                  <textarea class="textarea" data-remote-field="anonKey" placeholder="Paste the public anon key here">${escapeText(state.remote.anonKey)}</textarea>
+                </div>
+                <div class="field-group">
+                  <label>Email for magic link sign-in</label>
+                  <input class="input" type="email" value="${escapeValue(state.remote.email)}" data-remote-field="email" placeholder="you@example.com">
+                </div>
+                <div class="inline-actions">
+                  <button class="mini-button" type="button" data-action="remote-magic-link">Send magic link</button>
+                  <button class="mini-button" type="button" data-action="remote-restore-session">Restore session</button>
+                  <button class="ghost-button" type="button" data-action="remote-signout">Sign out</button>
+                </div>
+                <p class="muted">Recovery only:</p>
+                <div class="inline-actions">
+                  <button class="mini-button" type="button" data-action="remote-push">Upload whole browser copy</button>
+                  <button class="mini-button" type="button" data-action="remote-pull">Download whole cloud copy</button>
+                </div>
+                <p class="muted">Run the latest <code>supabase-schema.sql</code> once to enable per-day revisioned sync.</p>
+              </div>
+            </details>
           </div>
 
           <div class="split-grid">
@@ -4672,6 +5176,7 @@
       const focusSnapshot = captureFocusState();
       ensureEntry(state.selectedDate);
       renderHeader();
+      renderSyncIndicator();
       renderSaveNote();
       renderTabs();
       renderDashboard();
@@ -4810,6 +5315,38 @@
     function handleClick(event) {
       const button = event.target.closest("button");
       if (!button) {
+        return;
+      }
+
+      if (button.dataset.action === "open-sync") {
+        renderSyncDialog();
+        document.getElementById("syncDialog")?.showModal();
+        return;
+      }
+
+      if (button.dataset.action === "close-sync") {
+        document.getElementById("syncDialog")?.close();
+        return;
+      }
+
+      if (button.dataset.action === "sync-now") {
+        syncTracker();
+        return;
+      }
+
+      if (button.dataset.action === "resolve-sync-conflict") {
+        resolveEntryConflict(button.dataset.date, button.dataset.choice);
+        return;
+      }
+
+      if (button.dataset.action === "open-sync-settings") {
+        document.getElementById("syncDialog")?.close();
+        state.currentView = "summary";
+        saveState({ queueRemote: false });
+        render();
+        requestAnimationFrame(() => {
+          document.getElementById("syncSettingsCard")?.scrollIntoView({ behavior: "smooth" });
+        });
         return;
       }
 
@@ -5086,9 +5623,10 @@
     // Pull the companion's latest upload once the cloud session is restored, so
     // the tracker is current on open without a manual tap.
     restoreRemoteSession({ silent: true })
-      .then(() => {
+      .then(async () => {
         lastStateAutoPullAt = Date.now();
         render();
+        await syncTracker({ silent: true });
         return autoPullGarmin();
       })
       .catch(() => render());
