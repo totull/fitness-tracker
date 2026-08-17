@@ -2110,6 +2110,14 @@
         }
 
         const existingRevision = Number(existing?.revision || 0);
+        if (existing?.payload &&
+            JSON.stringify(existing.payload) === JSON.stringify(state.entries[dateKey])) {
+          markEntrySynced(dateKey, {
+            revision: existingRevision,
+            updated_at: existing.updated_at
+          });
+          continue;
+        }
         const localSummary = summarizeRemoteDay({ entries: { [dateKey]: state.entries[dateKey] } }, dateKey);
         const cloudSummary = summarizeRemoteDay({ entries: { [dateKey]: existing?.payload } }, dateKey);
         const revisionConflict = existingRevision > Number(meta.cloudRevision || 0);

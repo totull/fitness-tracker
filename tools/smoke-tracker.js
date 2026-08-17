@@ -548,6 +548,13 @@ function check(name, pass, detail) {
     out.cloudBreakfast = st.entries[cloudDate]?.meals?.breakfast?.details;
     out.localLunchInCloud = rows.get(localDate)?.payload?.meals?.lunch?.details;
 
+    // Legacy migration may mark an identical local row dirty. It should be
+    // acknowledged without creating a conflict or another revision.
+    window.markEntryDirty(localDate);
+    const identical = await window.syncTrackerEntries({ silent: true });
+    out.identicalSuccess = identical.success;
+    out.identicalRevision = rows.get(localDate).revision;
+
     // Both devices now change the same day from revision 1.
     st.entries[cloudDate].meals.breakfast.details = 'Local changed breakfast';
     window.markEntryDirty(cloudDate);
@@ -579,6 +586,10 @@ function check(name, pass, detail) {
     String(perDay.cloudBreakfast));
   check('different local date uploads independently', perDay.localLunchInCloud === 'Local lunch',
     String(perDay.localLunchInCloud));
+  check('identical legacy copy does not conflict', perDay.identicalSuccess === true,
+    String(perDay.identicalSuccess));
+  check('identical legacy copy does not create revision', perDay.identicalRevision === 1,
+    String(perDay.identicalRevision));
   check('same-date concurrent edits create conflict', perDay.conflictReason === 'conflict',
     String(perDay.conflictReason));
   check('conflict identifies the changed date', perDay.conflictDate === '2026-08-15',
