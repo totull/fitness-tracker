@@ -46,7 +46,8 @@ data class CompanionUiState(
 class HealthConnectCompanionViewModel(
     private val repository: HealthConnectRepository,
     private val exportWriter: ExportWriter,
-    private val supabaseSyncClient: SupabaseSyncClient = SupabaseSyncClient()
+    private val supabaseSyncClient: SupabaseSyncClient = SupabaseSyncClient(),
+    private val supabaseSessionStore: SupabaseSessionStore
 ) : ViewModel() {
     private val json = Json {
         prettyPrint = true
@@ -54,13 +55,21 @@ class HealthConnectCompanionViewModel(
         explicitNulls = false
     }
 
+    private val savedSupabaseState = supabaseSessionStore.load()
+
     var uiState by mutableStateOf(
-        CompanionUiState(requiredPermissions = repository.requiredPermissions())
+        CompanionUiState(
+            requiredPermissions = repository.requiredPermissions(),
+            supabaseUrl = savedSupabaseState.url,
+            supabaseAnonKey = savedSupabaseState.anonKey,
+            supabaseEmail = savedSupabaseState.email,
+            supabaseSignedInEmail = savedSupabaseState.session?.email
+        )
     )
         private set
 
     private var currentExport: HealthConnectExport? = null
-    private var supabaseSession: SupabaseSession? = null
+    private var supabaseSession: SupabaseSession? = savedSupabaseState.session
 
     init {
         refreshStatus()
@@ -114,6 +123,8 @@ class HealthConnectCompanionViewModel(
 
     fun updateSupabaseUrl(value: String) {
         supabaseSession = null
+        supabaseSessionStore.clearSession()
+        supabaseSessionStore.saveConfiguration(value.trim(), uiState.supabaseAnonKey.trim(), uiState.supabaseEmail.trim())
         uiState = uiState.copy(
             supabaseUrl = value,
             supabaseSignedInEmail = null,
@@ -125,6 +136,8 @@ class HealthConnectCompanionViewModel(
 
     fun updateSupabaseAnonKey(value: String) {
         supabaseSession = null
+        supabaseSessionStore.clearSession()
+        supabaseSessionStore.saveConfiguration(uiState.supabaseUrl.trim(), value.trim(), uiState.supabaseEmail.trim())
         uiState = uiState.copy(
             supabaseAnonKey = value,
             supabaseSignedInEmail = null,
@@ -136,6 +149,8 @@ class HealthConnectCompanionViewModel(
 
     fun updateSupabaseEmail(value: String) {
         supabaseSession = null
+        supabaseSessionStore.clearSession()
+        supabaseSessionStore.saveConfiguration(uiState.supabaseUrl.trim(), uiState.supabaseAnonKey.trim(), value.trim())
         uiState = uiState.copy(
             supabaseEmail = value,
             supabaseSignedInEmail = null,
@@ -213,6 +228,7 @@ class HealthConnectCompanionViewModel(
                 }
             }.onSuccess { session ->
                 supabaseSession = session
+                supabaseSessionStore.saveSession(session)
                 uiState = uiState.copy(
                     isBusy = false,
                     supabaseOtpRequested = false,
@@ -261,10 +277,23 @@ class HealthConnectCompanionViewModel(
             )
             runCatching {
                 val (export, preview) = buildExport()
-                withContext(Dispatchers.IO) {
-                    supabaseSyncClient.uploadExport(url, anonKey, session, export)
+                val activeSession = withContext(Dispatchers.IO) {
+                    if (session.expiresAtEpochSeconds > 0L &&
+                        session.expiresAtEpochSeconds <= java.time.Instant.now().epochSecond + 60L
+                    ) {
+                        supabaseSyncClient.refreshSession(url, anonKey, session)
+                    } else {
+                        session
+                    }
                 }
-                Triple(export, preview, session)
+                if (activeSession !== session) {
+                    supabaseSession = activeSession
+                    supabaseSessionStore.saveSession(activeSession)
+                }
+                withContext(Dispatchers.IO) {
+                    supabaseSyncClient.uploadExport(url, anonKey, activeSession, export)
+                }
+                Triple(export, preview, activeSession)
             }.onSuccess { (export, preview, signedInSession) ->
                 currentExport = export
                 uiState = uiState.copy(
@@ -375,7 +404,8 @@ class HealthConnectCompanionViewModel(
             return HealthConnectCompanionViewModel(
                 repository = HealthConnectRepository(appContext),
                 exportWriter = ExportWriter(appContext),
-                supabaseSyncClient = SupabaseSyncClient()
+                supabaseSyncClient = SupabaseSyncClient(),
+                supabaseSessionStore = SupabaseSessionStore(appContext)
             ) as T
         }
     }

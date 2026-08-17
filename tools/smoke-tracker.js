@@ -58,6 +58,59 @@ function check(name, pass, detail) {
   }).catch((e) => 'EVAL_FAIL: ' + e.message);
   check('pull returns machine-readable reason', reason === 'no-config', String(reason));
 
+  // Read path must not filter on a locally cached user id; RLS scopes the row.
+  // Stub the Supabase client to exercise the branches without a live project.
+  const branches = await page.evaluate(async () => {
+    const out = {};
+    const makeClient = (rows) => ({
+      from: () => ({
+        select: () => ({
+          order: () => ({
+            limit: async () => ({ data: rows, error: null })
+          })
+        })
+      })
+    });
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+    window.hasRemoteConfig = () => true;
+    window.__trackerTest.remoteRuntime.user = { id: 'web-user-uuid', email: 'me@example.com' };
+
+    // Row written by a DIFFERENT user id must still be returned (RLS scopes it).
+    window.ensureSupabaseClient = async () => makeClient([{
+      user_id: 'companion-user-uuid',
+      updated_at: '2026-08-17T04:00:00Z',
+      payload: { trackerPayloadPatch: { entries: { '2026-08-16': { steps: 8000 } } } }
+    }]);
+    out.mismatchedId = (await window.pullGarminRemotePayload({ silent: true })).reason;
+
+    // No row at all.
+    window.ensureSupabaseClient = async () => makeClient([]);
+    out.noRow = (await window.pullGarminRemotePayload({ silent: true })).reason;
+    out.noRowMsg = window.__trackerTest.garminRuntime.status;
+
+    // Row present but carrying no tracker entries.
+    window.ensureSupabaseClient = async () => makeClient([{
+      user_id: 'web-user-uuid',
+      updated_at: '2026-08-17T04:00:00Z',
+      payload: { trackerPayloadPatch: { entries: {} } }
+    }]);
+    out.emptyPayload = (await window.pullGarminRemotePayload({ silent: true })).reason;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    window.__trackerTest.remoteRuntime.user = null;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('row is read via RLS, not a cached user id', branches.mismatchedId === 'ok',
+    `reason=${branches.mismatchedId}`);
+  check('missing row reports account mismatch', branches.noRow === 'no-data', String(branches.noRow));
+  check('missing-row message is actionable', /different account|same project/i.test(branches.noRowMsg || ''),
+    String(branches.noRowMsg).slice(0, 90));
+  check('empty payload distinguished from missing row', branches.emptyPayload === 'empty-payload',
+    String(branches.emptyPayload));
+
   const w = page.locator('#weightInput');
   check('weight input present', (await w.count()) === 1);
   const inputmode = await w.getAttribute('inputmode');
@@ -96,3 +149,4 @@ function check(name, pass, detail) {
   console.log(`\n${results.length - failed}/${results.length} passed`);
   process.exit(failed ? 1 : 0);
 })();
+

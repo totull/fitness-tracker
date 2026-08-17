@@ -124,6 +124,6 @@ Suggested checks:
 
 ## Caveats
 
-- The project URL and anon key are entered for the current app session; they are not persisted.
+- The project URL, anon key, and email are saved in app-private storage for future launches. After OTP verification, the authenticated session and refresh token are also saved so normal syncs do not require signing in again; changing any saved configuration clears the session.
 - OTP verification depends on Supabase email OTP being enabled and the email provider being configured.
 - A Java 17/Android SDK 35 environment is required for the Gradle build; if Java is unavailable, the Kotlin changes can still be reviewed without running Gradle.

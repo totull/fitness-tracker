@@ -1746,29 +1746,47 @@
           return { hasData: false, reason: "signed-out", message };
         }
 
+        // RLS already restricts SELECT to auth.uid() = user_id, so no explicit
+        // user_id filter is used here. Filtering locally would hide the row
+        // whenever the cached session user drifts from the JWT subject.
         const { data, error } = await client
           .from(REMOTE_GARMIN_TABLE)
-          .select("payload, updated_at")
-          .eq("user_id", remoteRuntime.user.id)
-          .maybeSingle();
+          .select("user_id, payload, updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(1);
 
         if (error) {
           throw error;
         }
-        pulledData = data;
+        const row = Array.isArray(data) ? data[0] : data;
+        pulledData = row;
 
-        if (data?.payload) {
-          applyGarminCompanionPayload(data.payload, { queueRemote: false });
-          remoteRuntime.lastSyncAt = data.updated_at || new Date().toISOString();
-          message = "Garmin data synced from the companion.";
+        const signedInAs = remoteRuntime.user.email || remoteRuntime.user.id;
+
+        if (!row) {
+          message =
+            `No companion upload is visible to ${signedInAs}. ` +
+            "The companion uploaded under a different account or a different Supabase project. " +
+            "Check the email shown in the companion after “Sync to tracker” matches this one, and that both use the same project URL.";
+          reason = "no-data";
+          setGarminStatus(message, "warn");
+          setRemoteStatus("No companion Garmin sync is visible for this account.", "warn");
+        } else if (!row.payload?.trackerPayloadPatch?.entries ||
+                   !Object.keys(row.payload.trackerPayloadPatch.entries).length) {
+          message =
+            `A companion upload from ${formatDateTime(row.updated_at)} was found, but it contains no tracker entries. ` +
+            "Widen the date range in the companion and sync again.";
+          reason = "empty-payload";
+          setGarminStatus(message, "warn");
+          setRemoteStatus(message, "warn");
+        } else {
+          applyGarminCompanionPayload(row.payload, { queueRemote: false });
+          remoteRuntime.lastSyncAt = row.updated_at || new Date().toISOString();
+          const dayCount = Object.keys(row.payload.trackerPayloadPatch.entries).length;
+          message = `Synced ${dayCount} day${dayCount === 1 ? "" : "s"} from the companion.`;
           reason = "ok";
           setGarminStatus(message, "success");
           setRemoteStatus(message, "success");
-        } else {
-          message = "Signed in, but the companion has not uploaded any data yet. Open the companion and tap “Sync to tracker”.";
-          reason = "no-data";
-          setGarminStatus(message, "warn");
-          setRemoteStatus("No companion Garmin sync is available yet.", "warn");
         }
       } catch (error) {
         reason = "error";
@@ -3510,6 +3528,11 @@
           ${garminRuntime.status ? `
             <p class="garmin-status ${escapeText(garminRuntime.tone)}">${escapeText(garminRuntime.status)}</p>
           ` : ""}
+          <p class="muted" style="margin:8px 0 0;font-size:12px;">
+            Cloud account: ${remoteRuntime.user
+              ? escapeText(remoteRuntime.user.email || remoteRuntime.user.id)
+              : "not signed in"}. The companion must upload from this same account.
+          </p>
           <div class="metric-grid" style="margin-top:12px;">
             <div class="metric">
               <span class="muted">Steps</span>
@@ -4802,13 +4825,16 @@
     }
 
     document.addEventListener("input", handleInput);
-    document.addEventListener("change", handleChange);
-    document.addEventListener("change", (event) => {
+    document.addEventListener("change", handleChange);    document.addEventListener("change", (event) => {
       if (event.target.id === "garminFileInput") {
         handleGarminFileChange(event);
       }
     });
     document.addEventListener("click", handleClick);
+
+    // Test hook for tools/smoke-tracker.js. These are module-scoped consts, so
+    // they are not reachable on window without this. The app never reads it.
+    window.__trackerTest = { remoteRuntime, garminRuntime, getState: () => state };
 
     render();
     restoreRemoteSession({ silent: true }).then(() => render());

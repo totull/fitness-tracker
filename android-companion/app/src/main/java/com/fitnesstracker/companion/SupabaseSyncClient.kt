@@ -3,13 +3,20 @@ package com.fitnesstracker.companion
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-data class SupabaseSession(val accessToken: String, val userId: String, val email: String?)
+data class SupabaseSession(
+    val accessToken: String,
+    val userId: String,
+    val email: String?,
+    val refreshToken: String? = null,
+    val expiresAtEpochSeconds: Long = 0L
+)
 
 class SupabaseSyncClient(
     private val json: Json = Json { ignoreUnknownKeys = true; explicitNulls = false }
@@ -31,7 +38,34 @@ class SupabaseSyncClient(
         val session = json.decodeFromString<VerifyOtpResponse>(response)
         val accessToken = session.accessToken ?: throw IOException("Supabase did not return an access token.")
         val user = session.user ?: throw IOException("Supabase did not return a signed-in user.")
-        return SupabaseSession(accessToken, user.id, user.email)
+        return SupabaseSession(
+            accessToken = accessToken,
+            userId = user.id,
+            email = user.email,
+            refreshToken = session.refreshToken,
+            expiresAtEpochSeconds = Instant.now().epochSecond + (session.expiresIn ?: 3600L)
+        )
+    }
+
+    fun refreshSession(url: String, anonKey: String, session: SupabaseSession): SupabaseSession {
+        val refreshToken = session.refreshToken
+            ?: throw IOException("Supabase session expired and has no refresh token. Sign in again.")
+        val response = postJson(
+            endpoint(url, "/auth/v1/token?grant_type=refresh_token"),
+            anonKey,
+            json.encodeToString(RefreshTokenRequest(refreshToken))
+        )
+        val refreshed = json.decodeFromString<VerifyOtpResponse>(response)
+        val accessToken = refreshed.accessToken
+            ?: throw IOException("Supabase did not return an access token while refreshing.")
+        val user = refreshed.user ?: throw IOException("Supabase did not return a user while refreshing.")
+        return SupabaseSession(
+            accessToken = accessToken,
+            userId = user.id,
+            email = user.email ?: session.email,
+            refreshToken = refreshed.refreshToken ?: refreshToken,
+            expiresAtEpochSeconds = Instant.now().epochSecond + (refreshed.expiresIn ?: 3600L)
+        )
     }
 
     fun uploadExport(url: String, anonKey: String, session: SupabaseSession, export: HealthConnectExport) {
@@ -103,7 +137,14 @@ class SupabaseSyncClient(
     @Serializable
     private data class VerifyOtpResponse(
         @SerialName("access_token") val accessToken: String? = null,
+        @SerialName("refresh_token") val refreshToken: String? = null,
+        @SerialName("expires_in") val expiresIn: Long? = null,
         val user: SupabaseUser? = null
+    )
+
+    @Serializable
+    private data class RefreshTokenRequest(
+        @SerialName("refresh_token") val refreshToken: String
     )
 
     @Serializable
