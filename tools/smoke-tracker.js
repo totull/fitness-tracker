@@ -722,6 +722,53 @@ function check(name, pass, detail) {
   });
   check('caret position preserved across render()', caret === 2, `caret=${caret}`);
 
+  // --- Food catalog + unmatched-food reporting -----------------------------
+  // The silent-skip bug: an unrecognized food contributed 0 kcal with no
+  // indication, so a typo quietly under-counted the whole day.
+  const unmatched = await page.evaluate(() =>
+    window.__trackerTest.estimateMealNutritionFromText('2 eggs, blorptacos')
+  );
+  check('unrecognized foods are reported, not skipped silently',
+    unmatched.unrecognizedCount === 1 && /blorptacos/.test(unmatched.unrecognizedNames.join(',')),
+    JSON.stringify(unmatched.unrecognizedNames));
+  check('recognized foods still counted alongside unrecognized',
+    unmatched.recognizedCount === 1 && unmatched.calories > 0,
+    `count=${unmatched.recognizedCount} kcal=${unmatched.calories}`);
+
+  const allMatched = await page.evaluate(() =>
+    window.__trackerTest.estimateMealNutritionFromText('2 eggs, 1 roti')
+  );
+  check('fully recognized meal reports no unmatched foods',
+    allMatched.unrecognizedCount === 0, JSON.stringify(allMatched.unrecognizedNames));
+
+  // The warning must actually reach the user, not just the data layer.
+  await page.locator('.tab-button[data-view="log"]').click();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    const box = document.querySelector('textarea[data-meal-field="details"]');
+    box.value = 'blorptacos';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(600);
+  const hintText = await page.evaluate(() => document.body.innerText);
+  check('unmatched food surfaces a visible warning in the UI',
+    /blorptacos/i.test(hintText) && /not counted|0 kcal|No food match/i.test(hintText));
+
+  // Catalog loads lazily and must never shrink the curated list.
+  const catalogSize = await page.evaluate(async () => {
+    await window.__trackerTest.loadFoodCatalog();
+    return window.__trackerTest.foodCatalogSize();
+  });
+  check('food catalog is at least the curated baseline', catalogSize >= 27, `size=${catalogSize}`);
+
+  // Curated entries must win over generated ones (hand-tuned for this user).
+  const paneer = await page.evaluate(() =>
+    window.__trackerTest.estimateMealNutritionFromText('100g paneer')
+  );
+  check('curated paneer value wins over generated catalog',
+    paneer.calories === 265, `kcal=${paneer.calories}`);
+
   await browser.close();
 
   let failed = 0;

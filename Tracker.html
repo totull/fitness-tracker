@@ -115,6 +115,11 @@
       line-height: 1.5;
     }
 
+    .warn-text {
+      color: var(--warn, #b45309);
+      font-weight: 600;
+    }
+
     .header-controls {
       display: grid;
       gap: 12px;
@@ -1166,6 +1171,95 @@
       { aliases: ["tofu curry"], measure: "serving", baseAmount: 1, calories: 260, protein: 20, carbs: 16, fat: 11 },
       { aliases: ["paneer bhurji"], measure: "serving", baseAmount: 1, calories: 320, protein: 21, carbs: 10, fat: 22 }
     ];
+
+    // Generated from USDA FoodData Central SR Legacy (public domain) by
+    // tools/build-food-catalog.js. Loaded lazily and cached, so the ~800 extra
+    // foods never delay first paint. FOOD_CATALOG above always wins on a name
+    // clash -- those entries are hand-tuned for how this user actually eats.
+    const FOOD_CATALOG_URL = "food-catalog.json";
+    const FOOD_CATALOG_CACHE_KEY = "fitness-tracker-food-catalog-v1";
+    let extendedFoodCatalog = [];
+    let foodCatalogPromise = null;
+
+    function activeFoodCatalog() {
+      return FOOD_CATALOG.concat(extendedFoodCatalog);
+    }
+
+    /** Drops generated foods whose name collides with a curated entry. */
+    function mergeExtendedCatalog(foods) {
+      if (!Array.isArray(foods)) {
+        return [];
+      }
+      const curated = new Set();
+      FOOD_CATALOG.forEach((item) => {
+        item.aliases.forEach((alias) => curated.add(normalizeText(alias)));
+      });
+      return foods.filter((item) => {
+        if (!item || !Array.isArray(item.aliases) || !item.aliases.length) {
+          return false;
+        }
+        return !item.aliases.some((alias) => curated.has(normalizeText(alias)));
+      });
+    }
+
+    function readCachedFoodCatalog() {
+      try {
+        const raw = localStorage.getItem(FOOD_CATALOG_CACHE_KEY);
+        if (!raw) {
+          return null;
+        }
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed?.foods) ? parsed.foods : null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    /**
+     * Loads the generated catalog once. Failure is non-fatal: the curated list
+     * keeps working, so a bad network never blocks meal logging.
+     */
+    function loadFoodCatalog() {
+      if (foodCatalogPromise) {
+        return foodCatalogPromise;
+      }
+
+      const cached = readCachedFoodCatalog();
+      if (cached) {
+        extendedFoodCatalog = mergeExtendedCatalog(cached);
+        foodCatalogPromise = Promise.resolve(extendedFoodCatalog);
+        return foodCatalogPromise;
+      }
+
+      foodCatalogPromise = fetch(FOOD_CATALOG_URL, { cache: "force-cache" })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Food catalog request failed (${response.status})`);
+          }
+          return response.json();
+        })
+        .then((payload) => {
+          extendedFoodCatalog = mergeExtendedCatalog(payload?.foods);
+          try {
+            localStorage.setItem(
+              FOOD_CATALOG_CACHE_KEY,
+              JSON.stringify({ foods: payload?.foods || [] })
+            );
+          } catch (error) {
+            // Quota is not worth failing over; the fetch is cheap to repeat.
+          }
+          if (extendedFoodCatalog.length) {
+            render();
+          }
+          return extendedFoodCatalog;
+        })
+        .catch(() => {
+          extendedFoodCatalog = [];
+          return extendedFoodCatalog;
+        });
+
+      return foodCatalogPromise;
+    }
 
     const REMOTE_TABLE = "fitness_tracker_state";
     const REMOTE_ENTRIES_TABLE = "fitness_tracker_entries";
@@ -3076,7 +3170,7 @@
 
     function findFoodMatch(segment) {
       let bestMatch = null;
-      FOOD_CATALOG.forEach((item) => {
+      activeFoodCatalog().forEach((item) => {
         item.aliases.forEach((alias) => {
           if (hasAliasMatch(segment, alias)) {
             if (!bestMatch || alias.length > bestMatch.alias.length) {
@@ -3124,12 +3218,17 @@
         carbs: 0,
         fat: 0,
         recognizedCount: 0,
-        recognizedNames: []
+        recognizedNames: [],
+        unrecognizedNames: []
       };
 
       segments.forEach((segment) => {
         const item = findFoodMatch(segment);
         if (!item) {
+          // Previously this returned silently and the food contributed zero
+          // calories with no indication, so a mistyped or unknown food quietly
+          // under-counted the whole day. Report it instead.
+          totals.unrecognizedNames.push(segment);
           return;
         }
         const amount = extractFoodAmount(segment, item);
@@ -3147,7 +3246,9 @@
         carbs: roundOne(totals.carbs),
         fat: roundOne(totals.fat),
         recognizedCount: totals.recognizedCount,
-        recognizedNames: totals.recognizedNames
+        recognizedNames: totals.recognizedNames,
+        unrecognizedCount: totals.unrecognizedNames.length,
+        unrecognizedNames: totals.unrecognizedNames
       };
     }
 
@@ -3184,7 +3285,9 @@
         usedOverride: overrideCalories !== null || usedMacroOverride,
         invalidMacroOverride: macroOverrideValue !== "" && !parsedMacroOverride.isValid,
         recognizedCount: estimated.recognizedCount,
-        recognizedNames: estimated.recognizedNames
+        recognizedNames: estimated.recognizedNames,
+        unrecognizedCount: estimated.unrecognizedCount,
+        unrecognizedNames: estimated.unrecognizedNames
       };
     }
 
@@ -3891,6 +3994,14 @@
       if (mealMetric.invalidMacroOverride) {
         return "Macros format not recognized. Use 30P / 40C / 12F, or 30 / 40 / 12.";
       }
+
+      // Unmatched foods contribute nothing to the estimate, so always say so.
+      // Otherwise a typo or an unknown dish silently under-counts the day.
+      const unmatched = mealMetric.unrecognizedNames || [];
+      const warning = unmatched.length
+        ? ` <strong class="warn-text">Not counted: ${escapeText(unmatched.join(", "))}</strong> — add calories manually, or rename to a known food.`
+        : "";
+
       const manualParts = [];
       if (mealMetric.usedCaloriesOverride) {
         manualParts.push("calories");
@@ -3903,12 +4014,15 @@
         if (mealMetric.recognizedCount === 0) {
           return prefix + " Add food details if you want the automatic estimate too.";
         }
-        return prefix + " Recognized foods: " + mealMetric.recognizedNames.join(", ");
+        return prefix + " Recognized foods: " + escapeText(mealMetric.recognizedNames.join(", ")) + warning;
       }
       if (mealMetric.recognizedCount === 0) {
+        if (unmatched.length) {
+          return `No food match found for ${escapeText(unmatched.join(", "))}, so this meal counts as 0 kcal. Enter calories manually, or try names like whey, eggs, curd, tofu, roti, rice.`;
+        }
         return "No food match found yet. Add details like whey, eggs, curd, tofu, roti, rice.";
       }
-      return "Recognized foods: " + mealMetric.recognizedNames.join(", ");
+      return "Recognized foods: " + escapeText(mealMetric.recognizedNames.join(", ")) + warning;
     }
 
     function mealDisplayName(mealKey) {
@@ -5624,10 +5738,16 @@
       garminRuntime,
       getState: () => state,
       resetStateThrottle: () => { lastStateAutoPullAt = 0; },
-      resetGarminThrottle: () => { lastGarminAutoPullAt = 0; }
+      resetGarminThrottle: () => { lastGarminAutoPullAt = 0; },
+      estimateMealNutritionFromText,
+      loadFoodCatalog,
+      foodCatalogSize: () => activeFoodCatalog().length
     };
 
     render();
+    // The generated catalog only affects meal estimates, so it loads after the
+    // first render and re-renders if it adds anything.
+    loadFoodCatalog();
     // Pull the companion's latest upload once the cloud session is restored, so
     // the tracker is current on open without a manual tap.
     restoreRemoteSession({ silent: true })
