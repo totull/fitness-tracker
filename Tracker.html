@@ -1108,10 +1108,12 @@
       user: null,
       status: "Local only",
       tone: "primary",
-      lastSyncAt: null,
+      lastStatePushAt: null,
+      lastStatePullAt: null,
       syncTimer: null,
       unsubscribe: null,
-      pulling: false
+      pulling: false,
+      dirty: false
     };
 
     function cloneData(value) {
@@ -1439,6 +1441,7 @@
       persistLocalState();
       renderSaveNote();
       if (options.queueRemote !== false) {
+        remoteRuntime.dirty = true;
         queueRemoteSync();
       }
     }
@@ -1475,7 +1478,9 @@
       remoteRuntime.configKey = "";
       remoteRuntime.user = null;
       remoteRuntime.unsubscribe = null;
-      remoteRuntime.lastSyncAt = null;
+      remoteRuntime.lastStatePushAt = null;
+      remoteRuntime.lastStatePullAt = null;
+      remoteRuntime.dirty = false;
       clearTimeout(remoteRuntime.syncTimer);
       remoteRuntime.syncTimer = null;
     }
@@ -1657,7 +1662,8 @@
           throw error;
         }
 
-        remoteRuntime.lastSyncAt = new Date().toISOString();
+        remoteRuntime.lastStatePushAt = new Date().toISOString();
+        remoteRuntime.dirty = false;
         setRemoteStatus(`Cloud synced for ${remoteRuntime.user.email || "current user"}.`, "success");
       } catch (error) {
         setRemoteStatus(error.message || "Push to Supabase failed.", "danger");
@@ -1706,7 +1712,8 @@
           applyRemotePayload(data.payload);
           saveState({ queueRemote: false });
           remoteRuntime.pulling = false;
-          remoteRuntime.lastSyncAt = data.updated_at || new Date().toISOString();
+          remoteRuntime.lastStatePullAt = data.updated_at || new Date().toISOString();
+          remoteRuntime.dirty = false;
           setRemoteStatus("Pulled the latest cloud data.", "success");
         }
       } catch (error) {
@@ -1784,7 +1791,6 @@
             queueRemote: false,
             forceDates: options.forceDates
           });
-          remoteRuntime.lastSyncAt = row.updated_at || new Date().toISOString();
           const dayCount = Object.keys(row.payload.trackerPayloadPatch.entries).length;
           message = `Synced ${dayCount} day${dayCount === 1 ? "" : "s"} from the companion.`;
           reason = "ok";
@@ -1855,8 +1861,33 @@
       }
     }
 
+    const STATE_AUTO_PULL_INTERVAL_MS = 5 * 60 * 1000;
+    let lastStateAutoPullAt = 0;
     const GARMIN_AUTO_PULL_INTERVAL_MS = 15 * 60 * 1000;
     let lastGarminAutoPullAt = 0;
+
+    // Refresh meals and check-ins when returning to an existing tab. Do not
+    // replace local state while an upload is pending or has failed.
+    async function autoPullRemoteState({ force = false } = {}) {
+      if (!hasRemoteConfig() || !remoteRuntime.user) {
+        return { skipped: "not-ready" };
+      }
+      if (remoteRuntime.pulling) {
+        return { skipped: "busy" };
+      }
+      if (remoteRuntime.dirty) {
+        return { skipped: "local-changes" };
+      }
+      const now = Date.now();
+      if (!force && now - lastStateAutoPullAt < STATE_AUTO_PULL_INTERVAL_MS) {
+        return { skipped: "throttled" };
+      }
+
+      lastStateAutoPullAt = now;
+      const result = await pullRemoteState({ silent: true });
+      render();
+      return result;
+    }
 
     // Opportunistic background pull so opening the tracker already shows the
     // companion's latest upload. Stays quiet unless it actually finds data:
@@ -1888,7 +1919,8 @@
       return Object.values(state.entries)
         .map((entry) => entry?.garmin?.importedAt || "")
         .filter(Boolean)
-        .sort()        .at(-1) || "";
+        .sort()
+        .at(-1) || "";
     }
 
     async function syncGarmin() {
@@ -1905,7 +1937,6 @@
         const result = await pullGarminRemotePayload({ silent: true });
         const importedAt = latestGarminSyncAt();
         if (result.hasData && importedAt) {
-          remoteRuntime.lastSyncAt = importedAt;
           const message = `Garmin synced ${formatDateTime(importedAt)}.`;
           setGarminStatus(message, "success");
           setRemoteStatus(message, "success");
@@ -4305,8 +4336,11 @@
       const feedback = buildDailyFeedback(state.selectedDate);
       const journey = getGoalJourney(state.selectedDate);
       const avgEnergyBalance = describeEnergyBalance(summary.avgDeficit);
-      const lastRemoteSync = remoteRuntime.lastSyncAt
-        ? new Date(remoteRuntime.lastSyncAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      const lastStatePush = remoteRuntime.lastStatePushAt
+        ? new Date(remoteRuntime.lastStatePushAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+        : "Not uploaded yet";
+      const lastStatePull = remoteRuntime.lastStatePullAt
+        ? new Date(remoteRuntime.lastStatePullAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
         : "Not synced yet";
 
       summaryView.innerHTML = `
@@ -4410,8 +4444,12 @@
                   <strong>${remoteStatusLabel()}</strong>
                 </div>
                 <div class="metric">
-                  <span class="muted">Last cloud sync</span>
-                  <strong>${lastRemoteSync}</strong>
+                  <span class="muted">Tracker uploaded</span>
+                  <strong>${lastStatePush}</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Tracker downloaded</span>
+                  <strong>${lastStatePull}</strong>
                 </div>
               </div>
               <p class="muted">Run the SQL in <code>supabase-schema.sql</code> once inside Supabase SQL Editor, then enter the project URL and anon key here.</p>
@@ -4922,6 +4960,7 @@
       remoteRuntime,
       garminRuntime,
       getState: () => state,
+      resetStateThrottle: () => { lastStateAutoPullAt = 0; },
       resetGarminThrottle: () => { lastGarminAutoPullAt = 0; }
     };
 
@@ -4930,16 +4969,17 @@
     // the tracker is current on open without a manual tap.
     restoreRemoteSession({ silent: true })
       .then(() => {
+        lastStateAutoPullAt = Date.now();
         render();
         return autoPullGarmin();
       })
       .catch(() => render());
 
-    // Returning to the tab after time away is the other moment the data is
-    // likely stale. Throttled inside autoPullGarmin.
+    // Returning to the tab refreshes both tracker entries and Garmin data.
+    // Each path has its own throttle.
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
-        autoPullGarmin();
+        Promise.all([autoPullRemoteState(), autoPullGarmin()]);
       }
     });
   </script>

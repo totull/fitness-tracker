@@ -220,6 +220,75 @@ function check(name, pass, detail) {
   check('imported field refreshes on later sync', override.afterRefresh === '12500',
     `steps=${override.afterRefresh}`);
 
+  // Tracker-state auto-pull is separate from Garmin. This is the phone ->
+  // laptop path for meals, workouts and check-ins.
+  const statePull = await page.evaluate(async () => {
+    const out = {};
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+    const runtime = window.__trackerTest.remoteRuntime;
+    const st = window.__trackerTest.getState();
+    const dateKey = '2026-08-16';
+    const remoteEntry = JSON.parse(JSON.stringify(st.entries[dateKey]));
+    remoteEntry.meals.breakfast.details = 'Remote phone breakfast';
+    const payload = {
+      version: st.version,
+      startDate: st.startDate,
+      profile: JSON.parse(JSON.stringify(st.profile)),
+      entries: { [dateKey]: remoteEntry }
+    };
+    const client = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: { payload, updated_at: '2026-08-17T11:05:00Z' },
+              error: null
+            })
+          })
+        })
+      })
+    };
+
+    window.hasRemoteConfig = () => true;
+    window.ensureSupabaseClient = async () => client;
+    runtime.user = { id: 'u1', email: 'me@example.com' };
+    runtime.dirty = false;
+    window.__trackerTest.resetStateThrottle();
+
+    const first = await window.autoPullRemoteState();
+    out.firstHasData = first.hasData;
+    out.breakfast = window.__trackerTest.getState().entries[dateKey].meals.breakfast.details;
+    out.pullAt = runtime.lastStatePullAt;
+    out.second = (await window.autoPullRemoteState()).skipped;
+
+    // An unsent laptop edit must not be silently replaced by auto-pull.
+    window.__trackerTest.getState().entries[dateKey].meals.breakfast.details = 'Unsynced laptop edit';
+    runtime.dirty = true;
+    window.__trackerTest.resetStateThrottle();
+    out.dirty = (await window.autoPullRemoteState()).skipped;
+    out.afterDirty = window.__trackerTest.getState().entries[dateKey].meals.breakfast.details;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    runtime.user = null;
+    runtime.dirty = false;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('tracker auto-pull downloads phone state', statePull.firstHasData === true,
+    String(statePull.firstHasData));
+  check('tracker auto-pull applies phone meals', statePull.breakfast === 'Remote phone breakfast',
+    String(statePull.breakfast));
+  check('tracker pull has its own timestamp', statePull.pullAt === '2026-08-17T11:05:00Z',
+    String(statePull.pullAt));
+  check('tracker auto-pull throttles repeats', statePull.second === 'throttled',
+    String(statePull.second));
+  check('tracker auto-pull protects unsent local edits', statePull.dirty === 'local-changes',
+    String(statePull.dirty));
+  check('protected local edit remains intact', statePull.afterDirty === 'Unsynced laptop edit',
+    String(statePull.afterDirty));
+
   const w = page.locator('#weightInput');
   check('weight input present', (await w.count()) === 1);
   const inputmode = await w.getAttribute('inputmode');
@@ -258,4 +327,3 @@ function check(name, pass, detail) {
   console.log(`\n${results.length - failed}/${results.length} passed`);
   process.exit(failed ? 1 : 0);
 })();
-
