@@ -1451,10 +1451,11 @@
     }
 
     function remoteStatusLabel() {
-      if (remoteRuntime.user) {
-        return remoteRuntime.user.email || "Signed in";
-      }
       return remoteRuntime.status;
+    }
+
+    function remoteAccountLabel() {
+      return remoteRuntime.user?.email || "Not signed in";
     }
 
     function setRemoteStatus(status, tone = "primary") {
@@ -1531,6 +1532,26 @@
         startDate: state.startDate,
         profile: state.profile,
         entries: state.entries
+      };
+    }
+
+    function summarizeRemoteDay(payload, dateKey = state.selectedDate) {
+      const entries = payload?.entries && typeof payload.entries === "object"
+        ? payload.entries
+        : {};
+      const entry = entries[dateKey];
+      const mealCount = entry?.meals
+        ? Object.values(entry.meals).filter((meal) => hasMealContent(meal)).length
+        : 0;
+      const exerciseCount = Array.isArray(entry?.exerciseLogs)
+        ? entry.exerciseLogs.filter((exercise) =>
+          exercise?.sets?.some((set) => toNumber(set.weight) > 0 || toNumber(set.reps) > 0)
+        ).length
+        : 0;
+      return {
+        dayCount: Object.keys(entries).length,
+        mealCount,
+        exerciseCount
       };
     }
 
@@ -1635,9 +1656,10 @@
           setRemoteStatus("Cloud sync is not configured yet.", "warn");
           render();
         }
-        return;
+        return { success: false, reason: "no-config" };
       }
 
+      let result;
       try {
         const client = await ensureSupabaseClient();
         if (!remoteRuntime.user) {
@@ -1645,33 +1667,58 @@
           if (!options.silent) {
             render();
           }
-          return;
+          return { success: false, reason: "signed-out" };
         }
 
-        const { error } = await client
+        const payload = buildRemotePayload();
+        const { data, error } = await client
           .from(REMOTE_TABLE)
           .upsert({
             user_id: remoteRuntime.user.id,
-            payload: buildRemotePayload(),
+            payload,
             updated_at: new Date().toISOString()
           }, {
             onConflict: "user_id"
-          });
+          })
+          .select("payload, updated_at")
+          .single();
 
         if (error) {
           throw error;
         }
+        if (!data?.payload) {
+          throw new Error("Supabase accepted the upload but did not return the stored tracker payload.");
+        }
 
-        remoteRuntime.lastStatePushAt = new Date().toISOString();
+        const expected = summarizeRemoteDay(payload);
+        const stored = summarizeRemoteDay(data.payload);
+        if (stored.mealCount !== expected.mealCount ||
+            stored.exerciseCount !== expected.exerciseCount) {
+          throw new Error(
+            `Cloud verification failed: this browser sent ${expected.mealCount} meals and ` +
+            `${expected.exerciseCount} exercises for ${state.selectedDate}, but Supabase returned ` +
+            `${stored.mealCount} meals and ${stored.exerciseCount} exercises.`
+          );
+        }
+
+        remoteRuntime.lastStatePushAt = data.updated_at || new Date().toISOString();
         remoteRuntime.dirty = false;
-        setRemoteStatus(`Cloud synced for ${remoteRuntime.user.email || "current user"}.`, "success");
+        setRemoteStatus(
+          `Uploaded and verified ${stored.mealCount} meal${stored.mealCount === 1 ? "" : "s"} and ` +
+          `${stored.exerciseCount} completed exercise${stored.exerciseCount === 1 ? "" : "s"} ` +
+          `for ${formatHumanDate(state.selectedDate)}.`,
+          "success"
+        );
+        result = { success: true, summary: stored, updatedAt: remoteRuntime.lastStatePushAt };
       } catch (error) {
         setRemoteStatus(error.message || "Push to Supabase failed.", "danger");
+        result = { success: false, reason: "error", message: error.message || String(error) };
       }
 
       if (!options.silent) {
         render();
       }
+      return result;
     }
 
     async function pullRemoteState(options = {}) {
@@ -1697,7 +1744,6 @@
         const { data, error } = await client
           .from(REMOTE_TABLE)
           .select("payload, updated_at")
-          .eq("user_id", remoteRuntime.user.id)
           .maybeSingle();
 
         if (error) {
@@ -1714,7 +1760,13 @@
           remoteRuntime.pulling = false;
           remoteRuntime.lastStatePullAt = data.updated_at || new Date().toISOString();
           remoteRuntime.dirty = false;
-          setRemoteStatus("Pulled the latest cloud data.", "success");
+          const stored = summarizeRemoteDay(data.payload);
+          setRemoteStatus(
+            `Downloaded ${stored.mealCount} meal${stored.mealCount === 1 ? "" : "s"} and ` +
+            `${stored.exerciseCount} completed exercise${stored.exerciseCount === 1 ? "" : "s"} ` +
+            `for ${formatHumanDate(state.selectedDate)}.`,
+            "success"
+          );
         }
       } catch (error) {
         remoteRuntime.pulling = false;
@@ -1725,6 +1777,19 @@
         render();
       }
       return { hasData: Boolean(pulledData?.payload), updatedAt: pulledData?.updated_at || null };
+    }
+
+    async function syncRemoteState() {
+      setRemoteStatus(
+        remoteRuntime.dirty ? "Uploading this browser's changes…" : "Checking for cloud changes…",
+        "primary"
+      );
+      render();
+      const result = remoteRuntime.dirty
+        ? await pushRemoteState({ silent: true })
+        : await pullRemoteState({ silent: true });
+      render();
+      return result;
     }
 
     async function pullGarminRemotePayload(options = {}) {
@@ -4416,7 +4481,7 @@
                 <h2>Remote sync with Supabase</h2>
                 <p class="muted">Use the same Supabase project and email on each device to keep one shared tracker.</p>
               </div>
-              <span class="tag ${remoteRuntime.tone}">${remoteStatusLabel()}</span>
+              <span class="tag ${remoteRuntime.user ? "success" : "warn"}">${remoteAccountLabel()}</span>
             </div>
             <div class="grid">
               <div class="field-group">
@@ -4432,16 +4497,25 @@
                 <input class="input" type="email" value="${escapeValue(state.remote.email)}" data-remote-field="email" placeholder="you@example.com">
               </div>
               <div class="inline-actions">
+                <button class="action-button" type="button" data-action="remote-sync">Sync tracker now</button>
+              </div>
+              <details>
+                <summary>Account and recovery controls</summary>
+                <div class="inline-actions" style="margin-top:10px;">
                 <button class="mini-button" type="button" data-action="remote-magic-link">Send magic link</button>
                 <button class="mini-button" type="button" data-action="remote-restore-session">Restore session</button>
-                <button class="mini-button" type="button" data-action="remote-push">Push local data</button>
-                <button class="mini-button" type="button" data-action="remote-pull">Pull cloud data</button>
+                <button class="mini-button" type="button" data-action="remote-push">Upload this browser</button>
+                <button class="mini-button" type="button" data-action="remote-pull">Download cloud copy</button>
                 <button class="ghost-button" type="button" data-action="remote-signout">Sign out</button>
-              </div>
+                </div>
+              </details>
+              <p class="garmin-status ${remoteRuntime.tone}">
+                <strong>Last operation:</strong> ${escapeText(remoteStatusLabel())}
+              </p>
               <div class="metric-grid">
                 <div class="metric">
-                  <span class="muted">Sync status</span>
-                  <strong>${remoteStatusLabel()}</strong>
+                  <span class="muted">Cloud account</span>
+                  <strong>${remoteAccountLabel()}</strong>
                 </div>
                 <div class="metric">
                   <span class="muted">Tracker uploaded</span>
@@ -4757,6 +4831,11 @@
 
       if (button.dataset.action === "remote-restore-session") {
         restoreRemoteSession();
+        return;
+      }
+
+      if (button.dataset.action === "remote-sync") {
+        syncRemoteState();
         return;
       }
 

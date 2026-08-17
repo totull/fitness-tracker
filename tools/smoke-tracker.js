@@ -44,6 +44,8 @@ function check(name, pass, detail) {
 
   const syncBtn = page.locator('[data-action="sync-garmin"]');
   check('Sync Garmin button present', (await syncBtn.count()) === 1);
+  check('single tracker sync action present',
+    (await page.locator('[data-action="remote-sync"]').count()) === 1);
 
   // Failure path: no cloud config must surface a specific in-card reason.
   await syncBtn.first().click();
@@ -220,6 +222,79 @@ function check(name, pass, detail) {
   check('imported field refreshes on later sync', override.afterRefresh === '12500',
     `steps=${override.afterRefresh}`);
 
+  const breakfastInput = page.locator(
+    '[data-meal-key="breakfast"][data-meal-field="details"]'
+  );
+  await breakfastInput.fill('Phone breakfast upload');
+  await breakfastInput.press('Tab');
+  await page.waitForTimeout(150);
+  const savedMealFromUi = await page.evaluate(() => {
+    const st = window.__trackerTest.getState();
+    return st.entries[st.selectedDate]?.meals?.breakfast?.details;
+  });
+  check('typing in meal UI persists to browser state',
+    savedMealFromUi === 'Phone breakfast upload', String(savedMealFromUi));
+
+  // Upload must verify what Supabase stored and display the real operation
+  // result instead of hiding it behind the signed-in email.
+  const statePush = await page.evaluate(async () => {
+    const out = {};
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+    const runtime = window.__trackerTest.remoteRuntime;
+    const st = window.__trackerTest.getState();
+    const dateKey = '2026-08-16';
+    st.selectedDate = dateKey;
+
+    const makeClient = (mutateStored) => ({
+      from: () => ({
+        upsert: (row) => ({
+          select: () => ({
+            single: async () => {
+              const stored = JSON.parse(JSON.stringify(row));
+              if (mutateStored) mutateStored(stored);
+              return {
+                data: { payload: stored.payload, updated_at: '2026-08-17T11:10:00Z' },
+                error: null
+              };
+            }
+          })
+        })
+      })
+    });
+
+    window.hasRemoteConfig = () => true;
+    runtime.user = { id: 'u1', email: 'me@example.com' };
+
+    window.ensureSupabaseClient = async () => makeClient();
+    const good = await window.pushRemoteState({ silent: true });
+    out.good = good.success;
+    out.meals = good.summary?.mealCount;
+    out.status = runtime.status;
+    out.label = window.remoteStatusLabel();
+
+    window.ensureSupabaseClient = async () => makeClient((stored) => {
+      stored.payload.entries[dateKey].meals.breakfast.details = '';
+    });
+    const bad = await window.pushRemoteState({ silent: true });
+    out.bad = bad.success;
+    out.badMessage = bad.message;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    runtime.user = null;
+    runtime.dirty = false;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('tracker upload verifies stored payload', statePush.good === true, String(statePush.good));
+  check('verified upload reports meal count', statePush.meals >= 1, `meals=${statePush.meals}`);
+  check('sync status shows operation result, not email', /Uploaded and verified/.test(statePush.label || ''),
+    String(statePush.label));
+  check('cloud payload mismatch fails verification', statePush.bad === false, String(statePush.bad));
+  check('verification failure is actionable', /Cloud verification failed/.test(statePush.badMessage || ''),
+    String(statePush.badMessage));
+
   // Tracker-state auto-pull is separate from Garmin. This is the phone ->
   // laptop path for meals, workouts and check-ins.
   const statePull = await page.evaluate(async () => {
@@ -240,11 +315,9 @@ function check(name, pass, detail) {
     const client = {
       from: () => ({
         select: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({
-              data: { payload, updated_at: '2026-08-17T11:05:00Z' },
-              error: null
-            })
+          maybeSingle: async () => ({
+            data: { payload, updated_at: '2026-08-17T11:05:00Z' },
+            error: null
           })
         })
       })
