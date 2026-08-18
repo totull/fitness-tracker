@@ -1018,6 +1018,52 @@ function check(name, pass, detail) {
   check('conflict leaves the cloud copy intact',
     stranded.cloudStillHasPhone === '2 eggs, 1 roti', String(stranded.cloudStillHasPhone));
 
+  // --- Signing in as a different account must be visible ------------------
+  // Real-world failure: a browser was signed in as the wrong address. Its data
+  // lived under a separate account, so it reported "Synced" forever while
+  // showing none of the other devices' entries.
+  const account = await page.evaluate(async () => {
+    const out = {};
+    const st = window.__trackerTest.getState();
+    const runtime = window.__trackerTest.remoteRuntime;
+    const origHasCfg = window.hasRemoteConfig;
+    const prevEmail = st.remote.email;
+    const prevUser = runtime.user;
+
+    window.hasRemoteConfig = () => true;
+    st.remote.email = 'me@hotmail.com';
+    runtime.user = { id: 'u9', email: 'me@gmail.com' };
+    runtime.conflicts = [];
+    runtime.tone = 'success';
+    out.mismatchDetected = Boolean(window.signedInAccountMismatch());
+    out.indicator = window.getSyncIndicatorModel().label;
+    window.renderSyncDialog();
+    out.warningShown = (document.getElementById('syncAccountWarning')?.textContent || '')
+      .includes('me@gmail.com');
+
+    runtime.user = { id: 'u9', email: 'ME@Hotmail.com  ' };
+    out.caseInsensitive = window.signedInAccountMismatch() === null;
+    window.renderSyncDialog();
+    out.warningCleared = (document.getElementById('syncAccountWarning')?.textContent || '').trim() === '';
+
+    st.remote.email = prevEmail;
+    runtime.user = prevUser;
+    window.hasRemoteConfig = origHasCfg;
+    runtime.conflicts = [];
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('signed-in account mismatch is detected',
+    account.mismatchDetected === true, JSON.stringify(account.err || account.mismatchDetected));
+  check('sync indicator reports the wrong account instead of "Synced"',
+    account.indicator === 'Wrong account', String(account.indicator));
+  check('sync sheet names the account actually signed in',
+    account.warningShown === true, String(account.warningShown));
+  check('matching account is not flagged, ignoring case and spacing',
+    account.caseInsensitive === true, String(account.caseInsensitive));
+  check('warning disappears once the account matches',
+    account.warningCleared === true, String(account.warningCleared));
+
   await browser.close();
 
   let failed = 0;

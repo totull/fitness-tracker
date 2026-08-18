@@ -905,6 +905,7 @@
         <div class="sync-detail"><span>Cloud downloaded</span><strong id="syncDownloaded">Not yet</strong></div>
         <div class="sync-detail"><span>Garmin captured</span><strong id="syncGarminCaptured">Not yet</strong></div>
       </div>
+      <div id="syncAccountWarning"></div>
       <div id="syncConflictArea"></div>
       <button class="action-button" id="syncNowButton" type="button" data-action="sync-now">
         Sync now
@@ -1726,6 +1727,20 @@
       return remoteRuntime.user?.email || "Not signed in";
     }
 
+    /**
+     * The configured email is the account this person intends to use. Signing
+     * in as anyone else yields a separate, empty dataset that still syncs
+     * "successfully", which is indistinguishable from data loss.
+     */
+    function signedInAccountMismatch() {
+      const expected = String(state.remote?.email || "").trim().toLowerCase();
+      const signedInAs = String(remoteRuntime.user?.email || "").trim().toLowerCase();
+      if (!expected || !signedInAs || expected === signedInAs) {
+        return null;
+      }
+      return { expected: state.remote.email.trim(), signedInAs: remoteRuntime.user.email };
+    }
+
     function setRemoteStatus(status, tone = "primary") {
       remoteRuntime.status = status;
       remoteRuntime.tone = tone;
@@ -2474,6 +2489,14 @@
         add("Project URL", state.remote.url);
         add("Signed in as", authUser ? (authUser.email || "(no email)") : "Not signed in");
         add("Account id", authUser ? authUser.id : "-");
+        if (state.remote?.email && authUser?.email &&
+            state.remote.email.trim().toLowerCase() !== authUser.email.trim().toLowerCase()) {
+          report.problems.push(
+            `This browser is signed in as ${authUser.email} but is configured for ` +
+            `${state.remote.email.trim()}. Each account holds separate data, which is why ` +
+            "this device syncs successfully yet shows nothing from your other devices."
+          );
+        }
         if (!authUser) {
           report.problems.push("This browser is not signed in, so it cannot read or write cloud data.");
           return report;
@@ -4205,6 +4228,9 @@
       if (remoteRuntime.syncing) {
         return { label: "Saving…", tone: "primary" };
       }
+      if (signedInAccountMismatch()) {
+        return { label: "Wrong account", tone: "danger" };
+      }
       if (remoteRuntime.conflicts.length || remoteRuntime.tone === "danger") {
         return { label: "Sync issue", tone: "danger" };
       }
@@ -4261,6 +4287,24 @@
         ? formatDateTime(garminAt)
         : "Not yet";
       const conflictArea = document.getElementById("syncConflictArea");
+      const accountWarning = document.getElementById("syncAccountWarning");
+      if (accountWarning) {
+        // Signing in under a second address silently creates a parallel, empty
+        // dataset: sync reports success while showing none of the other
+        // device's data, because RLS scopes every row to the account.
+        const mismatch = signedInAccountMismatch();
+        accountWarning.innerHTML = mismatch
+          ? `<div class="garmin-status danger">
+               <strong>This browser is signed in as ${escapeText(mismatch.signedInAs)}.</strong>
+               <p style="margin-top:6px;">Your other devices use ${escapeText(mismatch.expected)}.
+               Each account has its own separate data, so nothing typed elsewhere will appear here.
+               Sign out and sign in with ${escapeText(mismatch.expected)}.</p>
+               <div class="inline-actions" style="margin-top:8px;">
+                 <button class="mini-button" type="button" data-action="remote-signout">Sign out</button>
+               </div>
+             </div>`
+          : "";
+      }
       conflictArea.innerHTML = remoteRuntime.conflicts.length
         ? remoteRuntime.conflicts.map((dateKey) => `
           <div class="garmin-status danger">
