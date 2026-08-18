@@ -1064,6 +1064,34 @@ function check(name, pass, detail) {
   check('warning disappears once the account matches',
     account.warningCleared === true, String(account.warningCleared));
 
+  // --- Sync state must be visible in every tab, not just Summary ----------
+  // Real-world complaint: on the phone the indicator lived deep in a tall
+  // header, so only Summary (which has its own sync card) ever showed it.
+  const pinned = [];
+  for (const view of ['dashboard', 'log', 'progress', 'summary']) {
+    const seen = await page.evaluate(async (v) => {
+      const st = window.__trackerTest.getState();
+      st.currentView = v;
+      window.render();
+      window.scrollTo(0, 1500);
+      await new Promise((r) => setTimeout(r, 60));
+      const el = document.getElementById('syncIndicator');
+      if (!el) return { ok: false, why: 'missing' };
+      const rect = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return {
+        ok: rect.top >= 0 && rect.bottom <= window.innerHeight && (el === hit || el.contains(hit)),
+        top: Math.round(rect.top)
+      };
+    }, view);
+    pinned.push({ view, ...seen });
+  }
+  for (const r of pinned) {
+    check(`sync state stays visible when scrolled in the ${r.view} tab`,
+      r.ok === true, `top=${r.top}`);
+  }
+  await page.evaluate(() => { window.scrollTo(0, 0); });
+
   await browser.close();
 
   let failed = 0;

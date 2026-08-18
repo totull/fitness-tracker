@@ -1,0 +1,13 @@
+Keep sync state visible in every tab
+
+The indicator sat inside a tall header, so on a phone it scrolled out of
+reach and only Summary, which has its own sync card, appeared to show sync
+state at all.
+
+Pin it above the tab bar in a sticky wrapper so it stays reachable in every
+tab at both phone and desktop widths.
+
+4 regression tests added; verified failing on 9c4752e. 92/92 pass.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+Copilot-Session: 0c561054-a711-4447-af60-8e9b0e43e265

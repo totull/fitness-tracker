@@ -174,14 +174,27 @@
       font-size: 22px;
     }
 
+    /* The sync state must stay visible in every tab, not just Summary, so it
+       is pinned alongside the tabs instead of living in the tall header. */
+    .sticky-bar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: grid;
+      gap: 8px;
+      padding: 8px 0;
+      background: var(--bg, #f8fafc);
+    }
+
+    .sticky-bar .sync-indicator {
+      width: 100%;
+    }
+
     .tab-bar {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 8px;
       margin-bottom: 16px;
-      position: sticky;
-      top: 8px;
-      z-index: 10;
     }
 
     .tab-button,
@@ -866,21 +879,23 @@
             <button class="mini-button" type="button" data-action="today">Today</button>
             <button class="mini-button" type="button" data-action="next-day">Next day</button>
           </div>
-          <button class="sync-indicator" id="syncIndicator" type="button" data-action="open-sync">
-            Local only
-          </button>
           <div class="header-stats" id="headerStats"></div>
         </div>
       </div>
       <div class="save-note" id="saveNote">Loading tracker...</div>
     </header>
 
-    <nav class="tab-bar" id="tabBar">
+    <div class="sticky-bar">
+      <button class="sync-indicator" id="syncIndicator" type="button" data-action="open-sync">
+        Local only
+      </button>
+      <nav class="tab-bar" id="tabBar">
       <button class="tab-button" data-view="dashboard">Dashboard</button>
       <button class="tab-button" data-view="log">Daily Log</button>
       <button class="tab-button" data-view="progress">Progress</button>
       <button class="tab-button" data-view="summary">Summary</button>
     </nav>
+    </div>
 
     <main>
       <section class="view" id="dashboardView"></section>
