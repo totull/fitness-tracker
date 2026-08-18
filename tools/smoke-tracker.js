@@ -882,6 +882,142 @@ function check(name, pass, detail) {
   check('upload does not erase the other device\'s meals', merge.cloudBreakfast === '2 eggs, 1 roti', String(merge.cloudBreakfast));
   check('upload does not erase the other device\'s weight', merge.cloudWeight === '84.5', String(merge.cloudWeight));
 
+  // --- A never-synced local day must not strand the device ----------------
+  // Real-world failure: the laptop had opened today (dirty, cloudRevision 0)
+  // while the phone uploaded a full day. Pull skipped the day because it was
+  // dirty and push refused it because the cloud revision was ahead, so the
+  // laptop reported "synced" while showing none of the phone's data.
+  const stranded = await page.evaluate(async () => {
+    const out = {};
+    const st = window.__trackerTest.getState();
+    const runtime = window.__trackerTest.remoteRuntime;
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+    const today = st.selectedDate;
+    const rows = new Map();
+    const copy = (v) => JSON.parse(JSON.stringify(v));
+
+    function tableApi(table) {
+      if (table === 'fitness_tracker_entries') {
+        return {
+          select: () => {
+            let filterDate = null;
+            const api = {
+              limit: async (n) => ({ data: copy([...rows.values()].slice(0, n)), error: null }),
+              order: async () => ({ data: copy([...rows.values()]), error: null }),
+              eq: (_c, v) => { filterDate = v; return api; },
+              maybeSingle: async () => ({
+                data: filterDate && rows.get(filterDate) ? copy(rows.get(filterDate)) : null,
+                error: null
+              })
+            };
+            return api;
+          },
+          upsert: (input) => ({
+            select: () => ({
+              single: async () => {
+                const prev = rows.get(input.entry_date);
+                const row = {
+                  entry_date: input.entry_date,
+                  payload: copy(input.payload),
+                  revision: prev ? prev.revision + 1 : 1,
+                  updated_at: new Date().toISOString()
+                };
+                rows.set(input.entry_date, row);
+                return { data: row, error: null };
+              }
+            })
+          })
+        };
+      }
+      return { select: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) };
+    }
+
+    window.hasRemoteConfig = () => true;
+    window.ensureSupabaseClient = async () => ({ from: tableApi });
+    runtime.user = { id: 'u1', email: 'me@example.com' };
+    runtime.entrySyncAvailable = null;
+    runtime.conflicts = [];
+
+    const blank = () => {
+      const e = JSON.parse(JSON.stringify(st.entries[today]));
+      Object.values(e.meals).forEach((m) => {
+        m.details = ''; m.caloriesOverride = ''; m.macroOverride = '';
+      });
+      (e.exerciseLogs || []).forEach((x) => (x.sets || []).forEach((s) => { s.weight = ''; }));
+      e.weight = '';
+      e.steps = '';
+      e.notes = '';
+      e.workoutNotes = '';
+      e.waistCm = '';
+      e.sleepHours = '';
+      e.workoutDone = false;
+      return e;
+    };
+
+    // Phone uploads a real day.
+    const phone = blank();
+    phone.weight = '84.5';
+    phone.meals.breakfast.details = '2 eggs, 1 roti';
+    phone.meals.lunch.details = 'dal chawal';
+    st.entries = { [today]: phone };
+    st.syncMeta = { dirty: true, entries: { [today]: {
+      dirty: true, localUpdatedAt: new Date().toISOString(), cloudRevision: 0, cloudUpdatedAt: ''
+    } } };
+    await window.syncTrackerEntries({ silent: true });
+
+    // Laptop: opened the day (so it is marked dirty) but typed nothing.
+    st.entries = { [today]: blank() };
+    st.syncMeta = { dirty: false, entries: {} };
+    window.__trackerTest.markEntryDirty(today);
+    runtime.conflicts = [];
+    out.emptyIsNotUserContent = window.__trackerTest.entryHasUserContent(st.entries[today]) === false;
+
+    const laptop = await window.syncTrackerEntries({ silent: true });
+    out.laptopReason = laptop.success ? 'ok' : laptop.reason;
+    out.laptopBreakfast = st.entries[today].meals.breakfast.details;
+    out.laptopWeight = st.entries[today].weight;
+    out.laptopClean = window.__trackerTest.getEntrySyncMeta(today).dirty === false;
+
+    // Now the same situation but the laptop really did type something: that
+    // must surface as a conflict rather than silently discarding either side.
+    const typed = blank();
+    typed.meals.dinner.details = 'laptop only dinner';
+    st.entries = { [today]: typed };
+    st.syncMeta = { dirty: false, entries: {} };
+    window.__trackerTest.markEntryDirty(today);
+    runtime.conflicts = [];
+    const clash = await window.syncTrackerEntries({ silent: true });
+    out.clashReason = clash.success ? 'ok' : clash.reason;
+    out.clashKeepsLocal = st.entries[today].meals.dinner.details;
+    out.cloudStillHasPhone = rows.get(today)?.payload?.meals?.breakfast?.details;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    runtime.user = null;
+    runtime.entrySyncAvailable = null;
+    runtime.conflicts = [];
+    runtime.dirty = false;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('an untouched day is not treated as user content',
+    stranded.emptyIsNotUserContent === true, JSON.stringify(stranded.err || stranded.emptyIsNotUserContent));
+  check('never-synced empty day syncs cleanly instead of stranding',
+    stranded.laptopReason === 'ok', String(stranded.laptopReason));
+  check('second device receives the meals typed on the first',
+    stranded.laptopBreakfast === '2 eggs, 1 roti', String(stranded.laptopBreakfast));
+  check('second device receives the weight typed on the first',
+    stranded.laptopWeight === '84.5', String(stranded.laptopWeight));
+  check('downloaded day is no longer marked unsent',
+    stranded.laptopClean === true, String(stranded.laptopClean));
+  check('genuinely divergent day raises a conflict instead of silence',
+    stranded.clashReason === 'conflict', String(stranded.clashReason));
+  check('conflict keeps this device\'s typed meal',
+    stranded.clashKeepsLocal === 'laptop only dinner', String(stranded.clashKeepsLocal));
+  check('conflict leaves the cloud copy intact',
+    stranded.cloudStillHasPhone === '2 eggs, 1 roti', String(stranded.cloudStillHasPhone));
+
   await browser.close();
 
   let failed = 0;

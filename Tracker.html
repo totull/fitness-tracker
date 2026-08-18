@@ -1809,6 +1809,15 @@
       };
     }
 
+    /**
+     * Reps come pre-filled from the workout plan, so only an entered weight
+     * proves the set was actually performed. Counting reps made every fresh
+     * device look like it had a full workout, which wrongly blocked downloads.
+     */
+    function exerciseWasPerformed(exercise) {
+      return Boolean(exercise?.sets?.some((set) => toNumber(set.weight) > 0));
+    }
+
     function summarizeRemoteDay(payload, dateKey = state.selectedDate) {
       const entries = payload?.entries && typeof payload.entries === "object"
         ? payload.entries
@@ -1818,9 +1827,7 @@
         ? Object.values(entry.meals).filter((meal) => hasMealContent(meal)).length
         : 0;
       const exerciseCount = Array.isArray(entry?.exerciseLogs)
-        ? entry.exerciseLogs.filter((exercise) =>
-          exercise?.sets?.some((set) => toNumber(set.weight) > 0 || toNumber(set.reps) > 0)
-        ).length
+        ? entry.exerciseLogs.filter((exercise) => exerciseWasPerformed(exercise)).length
         : 0;
       return {
         dayCount: Object.keys(entries).length,
@@ -1832,6 +1839,29 @@
     function isSummaryRicher(first, second) {
       return first.mealCount > second.mealCount ||
         first.exerciseCount > second.exerciseCount;
+    }
+
+    /**
+     * True when a day holds anything a person actually typed. Used to decide
+     * whether a never-synced local day may be replaced by the cloud copy, so a
+     * device that merely opened the app does not block its own first download.
+     */
+    function entryHasUserContent(entry) {
+      if (!entry || typeof entry !== "object") {
+        return false;
+      }
+      const hasMeals = Object.values(entry.meals || {}).some((meal) => hasMealContent(meal));
+      const hasExercise = Array.isArray(entry.exerciseLogs) && entry.exerciseLogs.some(exerciseWasPerformed);
+      // cardio* fields are pre-filled by the workout plan, so they are not
+      // evidence that anything was logged on this device.
+      const hasMetrics = toNumber(entry.weight) > 0 ||
+        toNumber(entry.steps) > 0 ||
+        toNumber(entry.sleepHours) > 0 ||
+        toNumber(entry.waistCm) > 0 ||
+        entry.workoutDone === true ||
+        Boolean(String(entry.notes || "").trim()) ||
+        Boolean(String(entry.workoutNotes || "").trim());
+      return hasMeals || hasExercise || hasMetrics;
     }
 
     function applyRemotePayload(payload) {
@@ -2226,6 +2256,27 @@
         const meta = getEntrySyncMeta(dateKey);
         const cloudRevision = Number(row.revision || 0);
         if (meta.dirty) {
+          // A day this device has never synced (cloudRevision 0) used to be
+          // skipped silently while push refused it too, stranding the device
+          // with neither its own upload nor the cloud copy. Resolve it here.
+          if (meta.cloudRevision === 0 && cloudRevision > 0) {
+            if (!entryHasUserContent(state.entries[dateKey])) {
+              state.entries[dateKey] = row.payload;
+              ensureEntry(dateKey);
+              markEntrySynced(dateKey, row);
+              downloaded += 1;
+              return;
+            }
+            if (meta.garminOnly) {
+              state.entries[dateKey] = mergeGarminIntoCloudEntry(row.payload, state.entries[dateKey]);
+              ensureEntry(dateKey);
+              meta.cloudRevision = cloudRevision;
+              meta.cloudUpdatedAt = row.updated_at || meta.cloudUpdatedAt;
+              return;
+            }
+            conflicts.push(dateKey);
+            return;
+          }
           if (meta.cloudRevision > 0 && cloudRevision > meta.cloudRevision) {
             // A Garmin-only local change is mergeable: keep the cloud copy and
             // re-apply this device's imported fields, then upload the union.
@@ -2394,6 +2445,173 @@
       return remoteRuntime.dirty
         ? pushRemoteState(options)
         : pullRemoteState(options);
+    }
+
+    /**
+     * Reports ground truth from the live Supabase project for this device.
+     * Every sync bug in this app has been a silent mismatch between what a
+     * device believed and what the server actually held, so this reads the real
+     * tables rather than reporting cached local state.
+     */
+    async function runSyncDiagnostics() {
+      const report = {
+        checkedAt: new Date().toISOString(),
+        dateKey: state.selectedDate,
+        lines: [],
+        problems: []
+      };
+      const add = (label, value) => report.lines.push({ label, value });
+
+      if (!hasRemoteConfig()) {
+        report.problems.push("No Supabase URL or anon key saved in this browser.");
+        return report;
+      }
+
+      try {
+        const client = await ensureSupabaseClient();
+        const { data: authData } = await client.auth.getUser();
+        const authUser = authData?.user || null;
+        add("Project URL", state.remote.url);
+        add("Signed in as", authUser ? (authUser.email || "(no email)") : "Not signed in");
+        add("Account id", authUser ? authUser.id : "-");
+        if (!authUser) {
+          report.problems.push("This browser is not signed in, so it cannot read or write cloud data.");
+          return report;
+        }
+        // A cached local session that no longer matches the server identity is
+        // the classic cause of "synced, but I see nothing".
+        if (remoteRuntime.user && remoteRuntime.user.id !== authUser.id) {
+          report.problems.push(
+            `This browser cached account ${remoteRuntime.user.email || remoteRuntime.user.id} ` +
+            `but the server says ${authUser.email || authUser.id}. Sign out and sign in again.`
+          );
+        }
+
+        const entriesProbe = await client
+          .from(REMOTE_ENTRIES_TABLE)
+          .select("entry_date, revision, updated_at")
+          .order("entry_date", { ascending: false })
+          .limit(400);
+
+        if (entriesProbe.error) {
+          if (isMissingEntriesTableError(entriesProbe.error)) {
+            add("Per-day table", "MISSING");
+            report.problems.push(
+              "The fitness_tracker_entries table does not exist in this project. " +
+              "Run the latest supabase-schema.sql, then sync again."
+            );
+          } else {
+            add("Per-day table", "Error: " + entriesProbe.error.message);
+            report.problems.push("Could not read fitness_tracker_entries: " + entriesProbe.error.message);
+          }
+        } else {
+          const rows = entriesProbe.data || [];
+          add("Per-day table", `OK, ${rows.length} day${rows.length === 1 ? "" : "s"} visible`);
+          const todayRow = rows.find((row) => row.entry_date === state.selectedDate);
+          add(
+            `Cloud row for ${formatHumanDate(state.selectedDate)}`,
+            todayRow
+              ? `revision ${todayRow.revision}, updated ${formatDateTime(todayRow.updated_at)}`
+              : "MISSING"
+          );
+          if (!rows.length) {
+            report.problems.push(
+              "No per-day rows are visible to this account. Either nothing has synced yet, " +
+              "or the other device is signed in with a different account."
+            );
+          }
+          if (rows.length && !todayRow) {
+            report.problems.push(
+              `The cloud has no row for ${formatHumanDate(state.selectedDate)} yet. ` +
+              "Sync from the device that has today's data first."
+            );
+          }
+          const newest = rows[0];
+          if (newest) {
+            add("Most recent cloud day", `${formatHumanDate(newest.entry_date)} (updated ${formatDateTime(newest.updated_at)})`);
+          }
+        }
+
+        const legacy = await client
+          .from(REMOTE_TABLE)
+          .select("updated_at, payload")
+          .maybeSingle();
+        if (legacy.error) {
+          add("Legacy whole-copy row", "Error: " + legacy.error.message);
+        } else if (!legacy.data) {
+          add("Legacy whole-copy row", "None");
+        } else {
+          const dayCount = Object.keys(legacy.data.payload?.entries || {}).length;
+          add("Legacy whole-copy row", `${dayCount} days, updated ${formatDateTime(legacy.data.updated_at)}`);
+        }
+
+        const garmin = await client
+          .from(REMOTE_GARMIN_TABLE)
+          .select("updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(1);
+        add(
+          "Companion Garmin upload",
+          garmin.error
+            ? "Error: " + garmin.error.message
+            : (garmin.data?.[0] ? formatDateTime(garmin.data[0].updated_at) : "None visible")
+        );
+
+        const dirty = dirtyEntryDates();
+        add("Unsent days on this device", dirty.length ? dirty.join(", ") : "None");
+        const meta = getEntrySyncMeta(state.selectedDate);
+        add(
+          `This device's ${formatHumanDate(state.selectedDate)}`,
+          `${summarizeRemoteDay(buildRemotePayload()).mealCount} meals logged, ` +
+          `known cloud revision ${meta.cloudRevision}${meta.dirty ? ", unsent" : ""}`
+        );
+      } catch (error) {
+        report.problems.push(error.message || String(error));
+      }
+      return report;
+    }
+
+    /**
+     * Manual recovery actions. These used to read and write only the legacy
+     * whole-payload row, which nothing has kept current since per-day sync
+     * landed, so "Upload"/"Download" appeared to work against an abandoned
+     * table. Prefer the per-day table whenever the project has it.
+     */
+    async function manualPushAll() {
+      if (hasRemoteConfig() && remoteRuntime.user) {
+        try {
+          const client = await ensureSupabaseClient();
+          if (await supportsEntrySync(client)) {
+            Object.keys(state.entries || {}).forEach((dateKey) => markEntryDirty(dateKey));
+            persistLocalState();
+            return await syncTracker({ force: true });
+          }
+        } catch (error) {
+          setRemoteStatus(error.message || "Upload failed.", "danger");
+          render();
+          return;
+        }
+      }
+      return pushRemoteState();
+    }
+
+    async function manualPullAll() {
+      if (hasRemoteConfig() && remoteRuntime.user) {
+        try {
+          const client = await ensureSupabaseClient();
+          if (await supportsEntrySync(client)) {
+            // Deliberately does not clear dirty flags: a day this device changed
+            // but never sent is resolved by pullEntryRows, which downloads it
+            // when there is nothing to lose and raises a conflict when there is.
+            return await syncTracker();
+          }
+        } catch (error) {
+          setRemoteStatus(error.message || "Download failed.", "danger");
+          render();
+          return;
+        }
+      }
+      return pullRemoteState({ force: true });
     }
 
     async function resolveEntryConflict(dateKey, choice) {
@@ -4011,6 +4229,19 @@
       renderSyncDialog();
     }
 
+    function renderSyncDiagnosticsReport(report) {
+      const rows = report.lines
+        .map((line) => `<div class="metric"><span class="muted">${escapeText(line.label)}</span><strong>${escapeText(String(line.value))}</strong></div>`)
+        .join("");
+      const problems = report.problems.length
+        ? `<div class="garmin-status danger" style="margin-top:10px;">
+             <strong>Problems found</strong>
+             <ul style="margin:6px 0 0 18px;">${report.problems.map((text) => `<li>${escapeText(text)}</li>`).join("")}</ul>
+           </div>`
+        : `<p class="garmin-status success" style="margin-top:10px;">No sync problems detected on this device.</p>`;
+      return `<div class="metric-grid" style="margin-top:12px;">${rows}</div>${problems}`;
+    }
+
     function renderSyncDialog() {
       const status = document.getElementById("syncDialogStatus");
       if (!status) {
@@ -5283,7 +5514,9 @@
                 <div class="inline-actions">
                   <button class="mini-button" type="button" data-action="remote-push">Upload whole browser copy</button>
                   <button class="mini-button" type="button" data-action="remote-pull">Download whole cloud copy</button>
+                  <button class="mini-button" type="button" data-action="run-sync-diagnostics">Check sync health</button>
                 </div>
+                <div id="syncDiagnosticsOutput"></div>
                 <p class="muted">Run the latest <code>supabase-schema.sql</code> once to enable per-day revisioned sync.</p>
               </div>
             </details>
@@ -5627,12 +5860,23 @@
       }
 
       if (button.dataset.action === "remote-push") {
-        pushRemoteState();
+        manualPushAll();
         return;
       }
 
       if (button.dataset.action === "remote-pull") {
-        pullRemoteState();
+        manualPullAll();
+        return;
+      }
+
+      if (button.dataset.action === "run-sync-diagnostics") {
+        const target = document.getElementById("syncDiagnosticsOutput");
+        if (target) {
+          target.innerHTML = "<p class=\"muted\">Checking Supabase…</p>";
+          runSyncDiagnostics().then((report) => {
+            target.innerHTML = renderSyncDiagnosticsReport(report);
+          });
+        }
         return;
       }
 
@@ -5830,6 +6074,11 @@
       resetGarminThrottle: () => { lastGarminAutoPullAt = 0; },
       estimateMealNutritionFromText,
       loadFoodCatalog,
+      entryHasUserContent,
+      pullEntryRows,
+      runSyncDiagnostics,
+      markEntryDirty,
+      getEntrySyncMeta,
       foodCatalogSize: () => activeFoodCatalog().length
     };
 
