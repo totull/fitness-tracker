@@ -769,6 +769,119 @@ function check(name, pass, detail) {
   check('curated paneer value wins over generated catalog',
     paneer.calories === 265, `kcal=${paneer.calories}`);
 
+  // --- Garmin + manual data must merge, not overwrite each other -----------
+  // Real-world failure: phone logged weight/meals, laptop pulled Garmin. The
+  // import did not mark the day dirty, so the next pull discarded the Garmin
+  // fields locally and never uploaded them.
+  const merge = await page.evaluate(async () => {
+    const out = {};
+    const st = window.__trackerTest.getState();
+    const runtime = window.__trackerTest.remoteRuntime;
+    const origEnsure = window.ensureSupabaseClient;
+    const origHasCfg = window.hasRemoteConfig;
+    const today = st.selectedDate;
+    const rows = new Map();
+    const copy = (v) => JSON.parse(JSON.stringify(v));
+
+    function tableApi(table) {
+      if (table === 'fitness_tracker_entries') {
+        return {
+          select: () => {
+            let filterDate = null;
+            const api = {
+              limit: async (n) => ({ data: copy([...rows.values()].slice(0, n)), error: null }),
+              order: async () => ({ data: copy([...rows.values()]), error: null }),
+              eq: (_c, v) => { filterDate = v; return api; },
+              maybeSingle: async () => ({
+                data: filterDate && rows.get(filterDate) ? copy(rows.get(filterDate)) : null,
+                error: null
+              })
+            };
+            return api;
+          },
+          upsert: (input) => ({
+            select: () => ({
+              single: async () => {
+                const prev = rows.get(input.entry_date);
+                const row = {
+                  entry_date: input.entry_date,
+                  payload: copy(input.payload),
+                  revision: prev ? prev.revision + 1 : 1,
+                  updated_at: new Date().toISOString()
+                };
+                rows.set(input.entry_date, row);
+                return { data: row, error: null };
+              }
+            })
+          })
+        };
+      }
+      return { select: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) };
+    }
+
+    window.hasRemoteConfig = () => true;
+    window.ensureSupabaseClient = async () => ({ from: tableApi });
+    runtime.user = { id: 'u1', email: 'me@example.com' };
+    runtime.entrySyncAvailable = null;
+    runtime.conflicts = [];
+
+    const blank = () => {
+      const e = JSON.parse(JSON.stringify(st.entries[today]));
+      Object.values(e.meals).forEach((m) => {
+        m.details = ''; m.caloriesOverride = ''; m.macroOverride = '';
+      });
+      e.weight = '';
+      e.steps = '';
+      return e;
+    };
+
+    // Phone: weight + breakfast, uploaded.
+    const phone = blank();
+    phone.weight = '84.5';
+    phone.meals.breakfast.details = '2 eggs, 1 roti';
+    st.entries = { [today]: phone };
+    st.syncMeta = { dirty: true, entries: { [today]: {
+      dirty: true, localUpdatedAt: new Date().toISOString(), cloudRevision: 0, cloudUpdatedAt: ''
+    } } };
+    await window.syncTrackerEntries({ silent: true });
+
+    // Laptop: fresh device that only pulls Garmin.
+    st.entries = { [today]: blank() };
+    st.syncMeta = { dirty: false, entries: {} };
+    runtime.conflicts = [];
+    window.applyGarminCompanionPayload({
+      source: { provider: 'Health Connect' },
+      trackerPayloadPatch: { entries: { [today]: { steps: '11200', sleepHours: '7' } } }
+    }, { queueRemote: true });
+    out.garminMarksDirty = st.syncMeta.entries?.[today]?.dirty === true;
+
+    const laptop = await window.syncTrackerEntries({ silent: true });
+    out.laptopReason = laptop.success ? 'ok' : laptop.reason;
+    out.laptopWeight = st.entries[today].weight;
+    out.laptopBreakfast = st.entries[today].meals.breakfast.details;
+    out.laptopSteps = st.entries[today].steps;
+    out.cloudWeight = rows.get(today)?.payload?.weight;
+    out.cloudBreakfast = rows.get(today)?.payload?.meals?.breakfast?.details;
+    out.cloudSteps = rows.get(today)?.payload?.steps;
+
+    window.ensureSupabaseClient = origEnsure;
+    window.hasRemoteConfig = origHasCfg;
+    runtime.user = null;
+    runtime.entrySyncAvailable = null;
+    runtime.conflicts = [];
+    runtime.dirty = false;
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('Garmin import marks the day for upload', merge.garminMarksDirty === true, JSON.stringify(merge.err || merge.garminMarksDirty));
+  check('Garmin-only device does not raise a conflict', merge.laptopReason === 'ok', String(merge.laptopReason));
+  check('Garmin pull keeps weight typed on the other device', merge.laptopWeight === '84.5', String(merge.laptopWeight));
+  check('Garmin pull keeps meals typed on the other device', merge.laptopBreakfast === '2 eggs, 1 roti', String(merge.laptopBreakfast));
+  check('Garmin data survives locally after sync', merge.laptopSteps === '11200', String(merge.laptopSteps));
+  check('Garmin data is uploaded for other devices', merge.cloudSteps === '11200', String(merge.cloudSteps));
+  check('upload does not erase the other device\'s meals', merge.cloudBreakfast === '2 eggs, 1 roti', String(merge.cloudBreakfast));
+  check('upload does not erase the other device\'s weight', merge.cloudWeight === '84.5', String(merge.cloudWeight));
+
   await browser.close();
 
   let failed = 0;

@@ -1670,16 +1670,27 @@
       remoteRuntime.dirty = state.syncMeta.dirty;
     }
 
-    function markEntryDirty(dateKey) {
+    function markEntryDirty(dateKey, options = {}) {
       const meta = getEntrySyncMeta(dateKey);
       meta.dirty = true;
       meta.localUpdatedAt = new Date().toISOString();
+      // Tracks whether the only local change is an automated Garmin import.
+      // Such a day can be merged into a newer cloud copy instead of conflicting,
+      // because Garmin owns a disjoint set of fields from anything typed by hand.
+      if (options.garmin) {
+        if (meta.garminOnly !== false) {
+          meta.garminOnly = true;
+        }
+      } else {
+        meta.garminOnly = false;
+      }
       refreshDirtyState();
     }
 
     function markEntrySynced(dateKey, row) {
       const meta = getEntrySyncMeta(dateKey);
       meta.dirty = false;
+      meta.garminOnly = false;
       meta.cloudRevision = Number(row?.revision || meta.cloudRevision || 0);
       meta.cloudUpdatedAt = row?.updated_at || new Date().toISOString();
       refreshDirtyState();
@@ -2157,6 +2168,48 @@
       return { migrated: rows.length };
     }
 
+    // Fields the companion owns. They are written by the Garmin import and never
+    // typed by hand, so they can be layered onto a cloud copy without touching
+    // anything the other device entered.
+    const GARMIN_OWNED_FIELDS = [
+      "steps", "sleepHours", "cardioType", "cardioDuration", "cardioCalories"
+    ];
+
+    /**
+     * Returns a copy of the cloud entry with this device's Garmin-imported
+     * fields layered on top. Used when the only local change is an automated
+     * import: the two devices edited disjoint fields, so merging keeps both
+     * rather than forcing the user to discard one.
+     */
+    function mergeGarminIntoCloudEntry(cloudEntry, localEntry) {
+      if (!cloudEntry || !localEntry) {
+        return cloudEntry || localEntry;
+      }
+      const merged = JSON.parse(JSON.stringify(cloudEntry));
+      const importedFields = localEntry.garmin?.importedFields || [];
+
+      GARMIN_OWNED_FIELDS.forEach((fieldName) => {
+        if (!importedFields.includes(fieldName)) {
+          return;
+        }
+        const value = localEntry[fieldName];
+        if (value === "" || value === null || value === undefined) {
+          return;
+        }
+        // Never clobber a value the other device set by hand.
+        if ((merged.garmin?.manualFields || []).includes(fieldName)) {
+          return;
+        }
+        merged[fieldName] = value;
+      });
+
+      if (importedFields.includes("workoutDone") && localEntry.workoutDone === true) {
+        merged.workoutDone = true;
+      }
+      merged.garmin = JSON.parse(JSON.stringify(localEntry.garmin || merged.garmin || {}));
+      return merged;
+    }
+
     async function pullEntryRows(client) {
       const { data, error } = await client
         .from(REMOTE_ENTRIES_TABLE)
@@ -2174,6 +2227,18 @@
         const cloudRevision = Number(row.revision || 0);
         if (meta.dirty) {
           if (meta.cloudRevision > 0 && cloudRevision > meta.cloudRevision) {
+            // A Garmin-only local change is mergeable: keep the cloud copy and
+            // re-apply this device's imported fields, then upload the union.
+            if (meta.garminOnly) {
+              state.entries[dateKey] = mergeGarminIntoCloudEntry(
+                row.payload,
+                state.entries[dateKey]
+              );
+              ensureEntry(dateKey);
+              meta.cloudRevision = cloudRevision;
+              meta.cloudUpdatedAt = row.updated_at || meta.cloudUpdatedAt;
+              return;
+            }
             conflicts.push(dateKey);
           }
           return;
@@ -2218,8 +2283,19 @@
         const legacyRecoveryCanWin = Number(meta.cloudRevision || 0) === 0 &&
           isSummaryRicher(localSummary, cloudSummary);
         if (revisionConflict && !legacyRecoveryCanWin) {
-          conflicts.push(dateKey);
-          continue;
+          // Garmin-only changes never conflict: merge this device's imported
+          // fields into the cloud copy and upload the union, so a device that
+          // only pulled Garmin data cannot erase meals typed elsewhere.
+          if (meta.garminOnly && existing?.payload) {
+            state.entries[dateKey] = mergeGarminIntoCloudEntry(
+              existing.payload,
+              state.entries[dateKey]
+            );
+            ensureEntry(dateKey);
+          } else {
+            conflicts.push(dateKey);
+            continue;
+          }
         }
 
         const { data, error } = await client
@@ -2435,7 +2511,9 @@
           setRemoteStatus(message, "warn");
         } else {
           applyGarminCompanionPayload(row.payload, {
-            queueRemote: false,
+            // Garmin fields are local changes that other devices need, so the
+            // touched days must be queued for upload.
+            queueRemote: true,
             forceDates: options.forceDates
           });
           const dayCount = Object.keys(row.payload.trackerPayloadPatch.entries).length;
@@ -3063,6 +3141,7 @@
       );
       let appliedDays = 0;
       let appliedFields = 0;
+      const changedDates = [];
 
       Object.entries(patch.entries).forEach(([dateKey, imported]) => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !imported || typeof imported !== "object") {
@@ -3116,15 +3195,25 @@
         entry.garmin.importedFields = importedFields;
         appliedDays += 1;
         appliedFields += importedFields.length - before;
+        changedDates.push(dateKey);
       });
 
       if (!appliedDays) {
         throw new Error("The companion export contained no dated tracker entries.");
       }
 
-      saveState({ queueRemote: options.queueRemote !== false });
+      // Garmin data is real local state, so every touched day must be marked
+      // dirty. Without this the import wrote steps/sleep into the entry but the
+      // day still looked "clean", so the next pull replaced it with the cloud
+      // copy and the Garmin numbers silently disappeared on that device -- and
+      // were never uploaded for any other device to see.
+      if (options.queueRemote !== false) {
+        changedDates.forEach((dateKey) => markEntryDirty(dateKey, { garmin: true }));
+      }
+
+      saveState({ queueRemote: false });
       render();
-      return { appliedDays, appliedFields, importedAt };
+      return { appliedDays, appliedFields, importedAt, changedDates };
     }
 
     async function importGarminCompanionFile(file) {
@@ -5754,16 +5843,20 @@
       .then(async () => {
         lastStateAutoPullAt = Date.now();
         render();
-        await syncTracker({ silent: true });
-        return autoPullGarmin();
+        // Garmin first: it writes into today's entry and marks it dirty, so the
+        // sync that follows uploads those fields instead of discarding them.
+        // Running it after the sync left Garmin data stranded on one device.
+        await autoPullGarmin();
+        return syncTracker({ silent: true });
       })
       .catch(() => render());
 
     // Returning to the tab refreshes both tracker entries and Garmin data.
-    // Each path has its own throttle.
+    // These run in sequence, not in parallel: Garmin mutates the same entry the
+    // sync uploads, and racing them let a pull overwrite a fresh import.
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
-        Promise.all([autoPullRemoteState(), autoPullGarmin()]);
+        autoPullGarmin().then(() => autoPullRemoteState());
       }
     });
   </script>
