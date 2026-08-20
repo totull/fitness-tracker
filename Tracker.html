@@ -2270,6 +2270,13 @@
       return merged;
     }
 
+    function entriesEquivalent(firstEntry, secondEntry) {
+      if (!firstEntry || !secondEntry) {
+        return false;
+      }
+      return JSON.stringify(firstEntry) === JSON.stringify(secondEntry);
+    }
+
     async function pullEntryRows(client) {
       const { data, error } = await client
         .from(REMOTE_ENTRIES_TABLE)
@@ -2286,6 +2293,12 @@
         const meta = getEntrySyncMeta(dateKey);
         const cloudRevision = Number(row.revision || 0);
         if (meta.dirty) {
+          // A stale dirty flag should not force a manual conflict when the
+          // entry content is already identical to the cloud copy.
+          if (entriesEquivalent(state.entries[dateKey], row.payload)) {
+            markEntrySynced(dateKey, row);
+            return;
+          }
           // A day this device has never synced (cloudRevision 0) used to be
           // skipped silently while push refused it too, stranding the device
           // with neither its own upload nor the cloud copy. Resolve it here.

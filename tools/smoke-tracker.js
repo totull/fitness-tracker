@@ -555,6 +555,17 @@ function check(name, pass, detail) {
     out.identicalSuccess = identical.success;
     out.identicalRevision = rows.get(localDate).revision;
 
+    // If another device only advanced the revision (same payload), a stale
+    // dirty flag must auto-clear instead of re-opening a manual conflict loop.
+    window.markEntryDirty(localDate);
+    const staleRow = rows.get(localDate);
+    staleRow.revision = staleRow.revision + 1;
+    staleRow.updated_at = '2026-08-17T11:45:00Z';
+    const stale = await window.syncTrackerEntries({ silent: true });
+    out.staleDirtyReason = stale.success ? 'ok' : stale.reason;
+    out.staleDirtyCleared = st.syncMeta.entries[localDate]?.dirty === false;
+    out.staleDirtyRevision = st.syncMeta.entries[localDate]?.cloudRevision;
+
     // Both devices now change the same day from revision 1.
     st.entries[cloudDate].meals.breakfast.details = 'Local changed breakfast';
     window.markEntryDirty(cloudDate);
@@ -590,6 +601,12 @@ function check(name, pass, detail) {
     String(perDay.identicalSuccess));
   check('identical legacy copy does not create revision', perDay.identicalRevision === 1,
     String(perDay.identicalRevision));
+  check('stale dirty flag does not reopen a conflict loop', perDay.staleDirtyReason === 'ok',
+    String(perDay.staleDirtyReason));
+  check('stale dirty flag is cleared after sync', perDay.staleDirtyCleared === true,
+    String(perDay.staleDirtyCleared));
+  check('stale dirty day learns the new cloud revision', perDay.staleDirtyRevision === 2,
+    String(perDay.staleDirtyRevision));
   check('same-date concurrent edits create conflict', perDay.conflictReason === 'conflict',
     String(perDay.conflictReason));
   check('conflict identifies the changed date', perDay.conflictDate === '2026-08-15',
