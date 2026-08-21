@@ -44,6 +44,8 @@ function check(name, pass, detail) {
 
   const syncBtn = page.locator('[data-action="sync-garmin"]');
   check('Sync Garmin button present', (await syncBtn.count()) === 1);
+  check('selected-day Garmin sync button present',
+    (await page.locator('[data-action="garmin-sync-selected"]').count()) === 1);
   check('explicit tracker upload action present',
     (await page.locator('[data-action="remote-push"]').count()) === 1);
   check('explicit tracker download action present',
@@ -155,12 +157,14 @@ function check(name, pass, detail) {
 
     // Ready -> pulls. Reset the throttle first: the manual sync exercised
     // earlier in this run legitimately marked the data fresh.
+    const recentDate = window.__trackerTest.dateKeyMinusDays(window.__trackerTest.todayKey(), 1);
+    out.recentDate = recentDate;
     window.__trackerTest.resetGarminThrottle();
     window.__trackerTest.remoteRuntime.user = { id: 'u1', email: 'me@example.com' };
     window.ensureSupabaseClient = async () => makeClient([{
       user_id: 'u1',
       updated_at: '2026-08-17T04:00:00Z',
-      payload: { trackerPayloadPatch: { entries: { '2026-08-16': { steps: 8000 } } } }
+      payload: { trackerPayloadPatch: { entries: { [recentDate]: { steps: 8000 } } } }
     }]);
     out.firstPull = (await window.autoPullGarmin()).reason;
 
@@ -183,19 +187,20 @@ function check(name, pass, detail) {
   check('auto-pull throttles repeat calls', auto.secondPull === 'throttled', String(auto.secondPull));
   check('auto-pull force bypasses throttle', auto.forced === 'ok', String(auto.forced));
 
-  const steps = await page.evaluate(() => {
-    const e = window.__trackerTest.getState().entries['2026-08-16'];
+  const steps = await page.evaluate((dateKey) => {
+    const e = window.__trackerTest.getState().entries[dateKey];
     return e && e.steps;
-  });
+  }, auto.recentDate);
   check('auto-pull applied data to the entry', String(steps) === '8000', `steps=${steps}`);
 
   // A hand-edited field must lock out imports, and must be recoverable.
   const override = await page.evaluate(async () => {
     const out = {};
+    const dateKey = window.__trackerTest.dateKeyMinusDays(window.__trackerTest.todayKey(), 1);
     const rows = (v) => [{
       user_id: 'u1',
       updated_at: '2026-08-17T04:00:00Z',
-      payload: { trackerPayloadPatch: { entries: { '2026-08-16': { steps: String(v) } } } }
+      payload: { trackerPayloadPatch: { entries: { [dateKey]: { steps: String(v) } } } }
     }];
     const makeClient = (v) => ({
       from: () => ({ select: () => ({ order: () => ({ limit: async () => ({ data: rows(v), error: null }) }) }) })
@@ -206,8 +211,8 @@ function check(name, pass, detail) {
     window.__trackerTest.remoteRuntime.user = { id: 'u1', email: 'me@example.com' };
 
     const st = window.__trackerTest.getState();
-    st.selectedDate = '2026-08-16';
-    const entry = st.entries['2026-08-16'];
+    st.selectedDate = dateKey;
+    const entry = window.__trackerTest.ensureEntry(dateKey);
 
     // Simulate a manual edit of steps.
     entry.steps = '9000';
@@ -218,18 +223,18 @@ function check(name, pass, detail) {
     window.ensureSupabaseClient = async () => makeClient(11000);
     window.__trackerTest.resetGarminThrottle();
     await window.autoPullGarmin();
-    out.afterNormalPull = st.entries['2026-08-16'].steps;
+    out.afterNormalPull = st.entries[dateKey].steps;
 
     // "Use Garmin values" must clear the lock and take the Garmin number.
-    await window.resetGarminOverrides('2026-08-16');
-    out.afterReset = st.entries['2026-08-16'].steps;
-    out.lockCleared = !st.entries['2026-08-16'].garmin.manualFields.includes('steps');
+    await window.resetGarminOverrides(dateKey);
+    out.afterReset = st.entries[dateKey].steps;
+    out.lockCleared = !st.entries[dateKey].garmin.manualFields.includes('steps');
 
     // A later sync with a higher count must now refresh normally.
     window.ensureSupabaseClient = async () => makeClient(12500);
     window.__trackerTest.resetGarminThrottle();
     await window.autoPullGarmin();
-    out.afterRefresh = st.entries['2026-08-16'].steps;
+    out.afterRefresh = st.entries[dateKey].steps;
 
     window.ensureSupabaseClient = origEnsure;
     window.hasRemoteConfig = origHasCfg;
@@ -245,6 +250,86 @@ function check(name, pass, detail) {
   check('reset clears the lock', override.lockCleared === true, String(override.lockCleared));
   check('imported field refreshes on later sync', override.afterRefresh === '12500',
     `steps=${override.afterRefresh}`);
+
+  // Rolling Garmin window: automatic sync should not keep reprocessing old
+  // already-synced days, manual sync gets a wider safety window, and the
+  // selected-day force action remains available for historical corrections.
+  const garminWindow = await page.evaluate(() => {
+    const out = {};
+    const t = window.__trackerTest;
+    const today = t.todayKey();
+    const recent = t.dateKeyMinusDays(today, 1);
+    const edge = t.dateKeyMinusDays(today, t.garminWindows.auto - 1);
+    const autoOld = t.dateKeyMinusDays(today, t.garminWindows.auto);
+    const manualOk = t.dateKeyMinusDays(today, t.garminWindows.manual - 1);
+    const manualOld = t.dateKeyMinusDays(today, t.garminWindows.manual);
+
+    const autoResult = window.applyGarminCompanionPayload({
+      source: { provider: 'Health Connect' },
+      trackerPayloadPatch: {
+        entries: {
+          [recent]: { steps: '7100' },
+          [edge]: { steps: '7200' },
+          [autoOld]: { steps: '7300' }
+        }
+      }
+    }, {
+      queueRemote: false,
+      windowDays: t.garminWindows.auto,
+      referenceDateKey: today
+    });
+    out.autoApplied = autoResult.appliedDays;
+    out.autoSkipped = autoResult.skippedDays;
+    out.recentSteps = t.getState().entries[recent]?.steps;
+    out.edgeSteps = t.getState().entries[edge]?.steps;
+    out.autoOldSteps = t.getState().entries[autoOld]?.steps;
+
+    const manualResult = window.applyGarminCompanionPayload({
+      source: { provider: 'Health Connect' },
+      trackerPayloadPatch: {
+        entries: {
+          [manualOk]: { steps: '7600' },
+          [manualOld]: { steps: '7700' }
+        }
+      }
+    }, {
+      queueRemote: false,
+      windowDays: t.garminWindows.manual,
+      referenceDateKey: today
+    });
+    out.manualApplied = manualResult.appliedDays;
+    out.manualSkipped = manualResult.skippedDays;
+    out.manualOkSteps = t.getState().entries[manualOk]?.steps;
+    out.manualOldSteps = t.getState().entries[manualOld]?.steps;
+
+    const forceResult = window.applyGarminCompanionPayload({
+      source: { provider: 'Health Connect' },
+      trackerPayloadPatch: { entries: { [manualOld]: { steps: '7900' } } }
+    }, {
+      queueRemote: false,
+      windowDays: 0,
+      forceDates: new Set([manualOld]),
+      referenceDateKey: today
+    });
+    out.forceApplied = forceResult.appliedDays;
+    out.forceOldSteps = t.getState().entries[manualOld]?.steps;
+    t.getState().selectedDate = '2026-08-16';
+    t.ensureEntry('2026-08-16');
+    return out;
+  }).catch((e) => ({ err: e.message }));
+
+  check('automatic Garmin sync applies only the rolling 3-day window',
+    garminWindow.autoApplied === 2 && garminWindow.autoSkipped === 1,
+    JSON.stringify(garminWindow));
+  check('automatic Garmin sync skips old entries',
+    garminWindow.recentSteps === '7100' && garminWindow.edgeSteps === '7200' && garminWindow.autoOldSteps !== '7300',
+    JSON.stringify(garminWindow));
+  check('manual Garmin sync applies the wider 7-day window',
+    garminWindow.manualApplied === 1 && garminWindow.manualSkipped === 1 && garminWindow.manualOkSteps === '7600',
+    JSON.stringify(garminWindow));
+  check('forced selected-day Garmin sync can import an older date',
+    garminWindow.forceApplied === 1 && garminWindow.forceOldSteps === '7900',
+    JSON.stringify(garminWindow));
 
   const breakfastInput = page.locator(
     '[data-meal-key="breakfast"][data-meal-field="details"]'

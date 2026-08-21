@@ -2733,6 +2733,7 @@
       let pulledData = null;
       let reason = "";
       let message = "";
+      let importResult = null;
       try {
         const client = await ensureSupabaseClient();
         if (!remoteRuntime.user) {
@@ -2779,14 +2780,19 @@
           setGarminStatus(message, "warn");
           setRemoteStatus(message, "warn");
         } else {
-          applyGarminCompanionPayload(row.payload, {
+          importResult = applyGarminCompanionPayload(row.payload, {
             // Garmin fields are local changes that other devices need, so the
             // touched days must be queued for upload.
             queueRemote: true,
-            forceDates: options.forceDates
+            forceDates: options.forceDates,
+            windowDays: options.windowDays,
+            referenceDateKey: options.referenceDateKey
           });
-          const dayCount = Object.keys(row.payload.trackerPayloadPatch.entries).length;
-          message = `Synced ${dayCount} day${dayCount === 1 ? "" : "s"} from the companion.`;
+          message = formatGarminWindowMessage(
+            importResult.appliedDays,
+            importResult.skippedDays,
+            options.windowDays
+          );
           reason = "ok";
           setGarminStatus(message, "success");
           setRemoteStatus(message, "success");
@@ -2805,7 +2811,9 @@
         hasData: Boolean(pulledData?.payload),
         updatedAt: pulledData?.updated_at || null,
         reason,
-        message
+        message,
+        appliedDays: importResult?.appliedDays || 0,
+        skippedDays: importResult?.skippedDays || 0
       };
     }
 
@@ -2840,12 +2848,18 @@
       try {
         const result = await pullGarminRemotePayload({
           silent: true,
+          windowDays: 0,
           forceDates: new Set([dateKey])
         });
-        if (result.reason === "ok") {
+        if (result.reason === "ok" && result.appliedDays) {
           setGarminStatus(
             `Restored ${locked.join(", ")} from Garmin. Your manual override was cleared.`,
             "success"
+          );
+        } else if (result.reason === "ok") {
+          setGarminStatus(
+            `No Garmin entry for ${formatHumanDate(dateKey)} was found in the latest companion upload.`,
+            "warn"
           );
         }
         saveState({ queueRemote: false });
@@ -2858,7 +2872,42 @@
     const STATE_AUTO_PULL_INTERVAL_MS = 5 * 60 * 1000;
     let lastStateAutoPullAt = 0;
     const GARMIN_AUTO_PULL_INTERVAL_MS = 15 * 60 * 1000;
+    const GARMIN_AUTO_SYNC_WINDOW_DAYS = 3;
+    const GARMIN_MANUAL_SYNC_WINDOW_DAYS = 7;
     let lastGarminAutoPullAt = 0;
+
+    function dateKeyMinusDays(dateKey, days) {
+      const date = parseDateKey(dateKey);
+      date.setDate(date.getDate() - days);
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function garminDateAgeDays(dateKey, referenceDateKey = todayKey()) {
+      return Math.floor((parseDateKey(referenceDateKey) - parseDateKey(dateKey)) / 86400000);
+    }
+
+    function isGarminDateInWindow(dateKey, windowDays, referenceDateKey = todayKey()) {
+      if (!Number.isFinite(Number(windowDays))) {
+        return true;
+      }
+      const ageDays = garminDateAgeDays(dateKey, referenceDateKey);
+      return ageDays >= 0 && ageDays < Number(windowDays);
+    }
+
+    function formatGarminWindowMessage(appliedDays, skippedDays, windowDays) {
+      const parts = [];
+      if (appliedDays) {
+        parts.push(`synced ${appliedDays} recent day${appliedDays === 1 ? "" : "s"}`);
+      }
+      if (skippedDays) {
+        const label = Number.isFinite(Number(windowDays))
+          ? `older than ${windowDays} day${Number(windowDays) === 1 ? "" : "s"}`
+          : "older";
+        parts.push(`skipped ${skippedDays} Garmin day${skippedDays === 1 ? "" : "s"} ${label}`);
+      }
+      return parts.length ? `Garmin ${parts.join("; ")}.` : "No Garmin days were applied.";
+    }
 
     // Refresh meals and check-ins when returning to an existing tab.
     async function autoPullRemoteState({ force = false } = {}) {
@@ -2898,7 +2947,10 @@
       lastGarminAutoPullAt = now;
       garminRuntime.syncing = true;
       try {
-        return await pullGarminRemotePayload({ silent: true });
+        return await pullGarminRemotePayload({
+          silent: true,
+          windowDays: GARMIN_AUTO_SYNC_WINDOW_DAYS
+        });
       } finally {
         garminRuntime.syncing = false;
         render();
@@ -2924,14 +2976,47 @@
 
       lastGarminAutoPullAt = Date.now();
       try {
-        const result = await pullGarminRemotePayload({ silent: true });
+        const result = await pullGarminRemotePayload({
+          silent: true,
+          windowDays: GARMIN_MANUAL_SYNC_WINDOW_DAYS
+        });
         const importedAt = latestGarminSyncAt();
-        if (result.hasData && importedAt) {
-          const message = `Garmin synced ${formatDateTime(importedAt)}.`;
-          setGarminStatus(message, "success");
-          setRemoteStatus(message, "success");
+        if (result.hasData) {
+          const message = result.appliedDays
+            ? `${formatGarminWindowMessage(result.appliedDays, result.skippedDays, GARMIN_MANUAL_SYNC_WINDOW_DAYS)} Latest import ${formatDateTime(importedAt)}.`
+            : result.message;
+          const tone = result.appliedDays ? "success" : "warn";
+          setGarminStatus(message, tone);
+          setRemoteStatus(message, tone);
           saveState({ queueRemote: false });
         }
+      } finally {
+        garminRuntime.syncing = false;
+        render();
+      }
+    }
+
+    async function syncSelectedGarminDate(dateKey) {
+      if (garminRuntime.syncing || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        return;
+      }
+      garminRuntime.syncing = true;
+      setGarminStatus(`Syncing Garmin for ${formatHumanDate(dateKey)}…`, "primary");
+      setRemoteStatus(`Syncing Garmin for ${formatHumanDate(dateKey)}…`, "primary");
+      render();
+
+      try {
+        const result = await pullGarminRemotePayload({
+          silent: true,
+          windowDays: 0,
+          forceDates: new Set([dateKey])
+        });
+        const message = result.appliedDays
+          ? `Garmin restored for ${formatHumanDate(dateKey)}.`
+          : `No Garmin entry for ${formatHumanDate(dateKey)} was found in the latest companion upload.`;
+        setGarminStatus(message, result.appliedDays ? "success" : "warn");
+        setRemoteStatus(message, result.appliedDays ? "success" : "warn");
+        saveState({ queueRemote: false });
       } finally {
         garminRuntime.syncing = false;
         render();
@@ -3410,14 +3495,21 @@
       );
       let appliedDays = 0;
       let appliedFields = 0;
+      let skippedDays = 0;
+      let datedDays = 0;
       const changedDates = [];
 
       Object.entries(patch.entries).forEach(([dateKey, imported]) => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !imported || typeof imported !== "object") {
           return;
         }
-        const entry = ensureEntry(dateKey);
+        datedDays += 1;
         const force = Boolean(options.forceDates?.has(dateKey));
+        if (!force && !isGarminDateInWindow(dateKey, options.windowDays, options.referenceDateKey || todayKey())) {
+          skippedDays += 1;
+          return;
+        }
+        const entry = ensureEntry(dateKey);
         if (force) {
           entry.garmin.manualFields = [];
         }
@@ -3467,7 +3559,7 @@
         changedDates.push(dateKey);
       });
 
-      if (!appliedDays) {
+      if (!datedDays) {
         throw new Error("The companion export contained no dated tracker entries.");
       }
 
@@ -3482,7 +3574,7 @@
 
       saveState({ queueRemote: false });
       render();
-      return { appliedDays, appliedFields, importedAt, changedDates };
+      return { appliedDays, appliedFields, skippedDays, importedAt, changedDates };
     }
 
     async function importGarminCompanionFile(file) {
@@ -4751,6 +4843,7 @@
           </div>
           <div class="inline-actions">
             <button class="action-button" type="button" data-action="sync-garmin"${garminRuntime.syncing ? " disabled" : ""}>${garminRuntime.syncing ? "Syncing…" : "Sync Garmin"}</button>
+            <button class="ghost-button" type="button" data-action="garmin-sync-selected"${garminRuntime.syncing ? " disabled" : ""}>Sync this day</button>
             <span class="muted">Companion captured ${escapeText(importedAt)}</span>
           </div>
           ${garminRuntime.status ? `
@@ -5876,6 +5969,11 @@
         return;
       }
 
+      if (button.dataset.action === "garmin-sync-selected") {
+        syncSelectedGarminDate(state.selectedDate);
+        return;
+      }
+
       if (button.dataset.action === "garmin-reset-overrides") {
         resetGarminOverrides(state.selectedDate);
         return;
@@ -6144,11 +6242,19 @@
       getState: () => state,
       resetStateThrottle: () => { lastStateAutoPullAt = 0; },
       resetGarminThrottle: () => { lastGarminAutoPullAt = 0; },
+      todayKey,
+      dateKeyMinusDays,
+      isGarminDateInWindow,
+      garminWindows: {
+        auto: GARMIN_AUTO_SYNC_WINDOW_DAYS,
+        manual: GARMIN_MANUAL_SYNC_WINDOW_DAYS
+      },
       estimateMealNutritionFromText,
       loadFoodCatalog,
       entryHasUserContent,
       pullEntryRows,
       runSyncDiagnostics,
+      ensureEntry,
       markEntryDirty,
       getEntrySyncMeta,
       foodCatalogSize: () => activeFoodCatalog().length
