@@ -991,6 +991,8 @@
   <script src="./garmin-importer.js"></script>
   <script>
     const STORAGE_KEY = "fitness-tracker-local-v4";
+    const STORAGE_RECOVERY_KEY = "fitness-tracker-local-v4-recovery";
+    let loadStateFailure = "";
     const DAY_MS = 24 * 60 * 60 * 1000;
     const CHECKPOINT_DAYS = [30, 61, 92, 122, 153, 181, 212];
 
@@ -1659,22 +1661,39 @@
       return nextEntries;
     }
 
-    function applyBaselineRules(baseState) {
+    /**
+     * The day the tracker should open on. Landing on the baseline start date
+     * meant a new tab always opened months in the past, so the first tap of
+     * every session was navigating back to the present.
+     *
+     * Today is the answer whenever the tracker has started. Before the start
+     * date there is nothing to log yet, so fall back to the baseline.
+     */
+    function preferredOpeningDate() {
+      return maxDateKey(todayKey(), TRACKER_START_DATE);
+    }
+
+    function applyBaselineRules(baseState, options = {}) {
       const nextState = {
         ...baseState,
         startDate: TRACKER_START_DATE,
-        selectedDate: maxDateKey(baseState.selectedDate || TRACKER_START_DATE, TRACKER_START_DATE),
+        selectedDate: options.openOnLatest
+          ? preferredOpeningDate()
+          : maxDateKey(baseState.selectedDate || TRACKER_START_DATE, TRACKER_START_DATE),
         entries: pruneEntriesBeforeBaseline(baseState.entries)
       };
       return nextState;
     }
 
-    const VIEW_NAMES = ["log", "progress", "settings"];
-    const LEGACY_VIEW_NAMES = { dashboard: "log", summary: "settings" };
-
     function migrateViewName(view) {
-      const mapped = LEGACY_VIEW_NAMES[view] || view;
-      return VIEW_NAMES.includes(mapped) ? mapped : "log";
+      // Declared inline rather than as module consts: loadState() runs during
+      // the initial `let state = ...` binding, which is above this point in the
+      // file, so module-level consts here would still be in the temporal dead
+      // zone and throw ReferenceError on every load.
+      const viewNames = ["log", "progress", "settings"];
+      const legacyViewNames = { dashboard: "log", summary: "settings" };
+      const mapped = legacyViewNames[view] || view;
+      return viewNames.includes(mapped) ? mapped : "log";
     }
 
     function loadState() {
@@ -1687,7 +1706,7 @@
           "null"
         );
         if (!saved) {
-          const normalizedDefaultState = applyBaselineRules(cloneData(DEFAULT_STATE));
+          const normalizedDefaultState = applyBaselineRules(cloneData(DEFAULT_STATE), { openOnLatest: true });
           localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedDefaultState));
           return normalizedDefaultState;
         }
@@ -1715,14 +1734,25 @@
             ...(saved.ui || {})
           },
           entries: saved.entries || {}
-        });
+        }, { openOnLatest: true });
         normalizedState.currentView = migrateViewName(normalizedState.currentView);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedState));
         return normalizedState;
       } catch (error) {
-        const normalizedDefaultState = applyBaselineRules(cloneData(DEFAULT_STATE));
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedDefaultState));
-        return normalizedDefaultState;
+        // Never overwrite the saved copy from this path. A bug anywhere in the
+        // migration above used to land here, reset to defaults, and then write
+        // those defaults back, permanently destroying the user's logged days.
+        // Keep the raw copy intact so a later fix can still recover it.
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw && !localStorage.getItem(STORAGE_RECOVERY_KEY)) {
+            localStorage.setItem(STORAGE_RECOVERY_KEY, raw);
+          }
+        } catch (backupError) {
+          // Backing up is best effort; never block startup on it.
+        }
+        loadStateFailure = String((error && error.message) || error);
+        return applyBaselineRules(cloneData(DEFAULT_STATE), { openOnLatest: true });
       }
     }
 
@@ -6218,6 +6248,7 @@
       remoteRuntime,
       garminRuntime,
       getState: () => state,
+      loadState,
       resetStateThrottle: () => { lastStateAutoPullAt = 0; },
       resetGarminThrottle: () => { lastGarminAutoPullAt = 0; },
       todayKey,

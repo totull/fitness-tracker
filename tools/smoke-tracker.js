@@ -1320,6 +1320,76 @@ function check(name, pass, detail) {
     tileColumns.ok === true && tileColumns.cols >= 2,
     JSON.stringify(tileColumns));
 
+  // ---------------------------------------------------------------
+  // Reload survival. The suite used to drive the app only after a single
+  // load, so a bug that wiped localStorage on every startup passed all
+  // checks. These must stay last: they mutate storage and reload.
+  // ---------------------------------------------------------------
+
+  const STORE_KEY = 'fitness-tracker-local-v4';
+
+  await page.evaluate((key) => {
+    const raw = JSON.parse(localStorage.getItem(key));
+    raw.selectedDate = '2026-08-21';
+    for (const d of ['2026-08-20', '2026-08-21', '2026-08-22']) {
+      raw.entries[d] = { ...(raw.entries[d] || {}), weight: 85, steps: 8000 };
+    }
+    localStorage.setItem(key, JSON.stringify(raw));
+  }, STORE_KEY);
+
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForTimeout(1500);
+
+  const survived = await page.evaluate((key) => {
+    const raw = JSON.parse(localStorage.getItem(key) || 'null');
+    if (!raw) return { ok: false, why: 'storage empty after reload' };
+    return {
+      ok: true,
+      days: Object.keys(raw.entries || {}).sort(),
+      weight: (raw.entries['2026-08-21'] || {}).weight
+    };
+  }, STORE_KEY);
+  check('logged entries survive a page reload',
+    survived.ok === true &&
+    ['2026-08-20', '2026-08-21', '2026-08-22'].every((d) => survived.days.includes(d)) &&
+    survived.weight === 85,
+    JSON.stringify(survived));
+
+  // Corrupt storage must be preserved for recovery, never silently replaced.
+  await page.evaluate((key) => {
+    localStorage.setItem(key, '{not valid json');
+  }, STORE_KEY);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForTimeout(1500);
+  const crashSafe = await page.evaluate((key) => {
+    const after = localStorage.getItem(key);
+    const backup = localStorage.getItem(key + '-recovery');
+    return { overwritten: after !== '{not valid json', backedUp: backup === '{not valid json' };
+  }, STORE_KEY);
+  check('a failure reading state does not erase saved data',
+    crashSafe.backedUp === true, JSON.stringify(crashSafe));
+
+  // Opening months in the past meant the first action of every session was
+  // navigating back to the present.
+  const openingDate = await page.evaluate((key) => {
+    localStorage.removeItem(key);
+    localStorage.removeItem(key + '-recovery');
+  }, STORE_KEY).then(async () => {
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(1500);
+    return page.evaluate(() => {
+      const pad = (n) => String(n).padStart(2, '0');
+      const now = new Date();
+      return {
+        selected: window.__trackerTest.getState().selectedDate,
+        today: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+      };
+    });
+  });
+  check('a fresh install opens on today, not the baseline start date',
+    openingDate.selected === openingDate.today,
+    JSON.stringify(openingDate));
+
   await browser.close();
 
   let failed = 0;
