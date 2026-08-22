@@ -190,9 +190,55 @@
       width: 100%;
     }
 
+    .date-strip {
+      display: grid;
+      gap: 8px;
+    }
+
+    .date-strip-row {
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .date-strip-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .date-strip-label strong {
+      font-size: 0.95rem;
+    }
+
+    .date-strip-label .muted {
+      font-size: 0.75rem;
+    }
+
+    .date-strip-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      border: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
     .tab-bar {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
       margin-bottom: 16px;
     }
@@ -817,7 +863,7 @@
       }
 
       .tab-bar {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         position: fixed;
         left: 50%;
         bottom: 12px;
@@ -836,12 +882,15 @@
       .two-col,
       .three-col,
       .four-col,
-      .metric-grid,
       .set-grid,
       .hero-stat-grid,
       .workout-summary-grid,
       .daily-hero-grid {
         grid-template-columns: 1fr;
+      }
+
+      .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .set-row {
@@ -870,15 +919,6 @@
           </p>
         </div>
         <div class="header-controls">
-          <div class="field-group">
-            <label for="entryDate">Entry date</label>
-            <input class="input" id="entryDate" type="date">
-          </div>
-          <div class="inline-actions">
-            <button class="mini-button" type="button" data-action="prev-day">Previous day</button>
-            <button class="mini-button" type="button" data-action="today">Today</button>
-            <button class="mini-button" type="button" data-action="next-day">Next day</button>
-          </div>
           <div class="header-stats" id="headerStats"></div>
         </div>
       </div>
@@ -889,19 +929,31 @@
       <button class="sync-indicator" id="syncIndicator" type="button" data-action="open-sync">
         Local only
       </button>
+
+      <div class="date-strip">
+        <div class="date-strip-row">
+          <button class="mini-button" type="button" data-action="prev-day" aria-label="Previous day">&lsaquo;</button>
+          <button class="date-strip-label" type="button" data-action="open-date-picker" aria-label="Change entry date">
+            <strong id="dateStripPrimary">--</strong>
+            <span class="muted" id="dateStripSecondary"></span>
+          </button>
+          <button class="mini-button" type="button" data-action="next-day" aria-label="Next day">&rsaquo;</button>
+        </div>
+        <button class="mini-button" type="button" id="dateStripToday" data-action="today" hidden>Back to today</button>
+        <input class="date-strip-input" id="entryDate" type="date" tabindex="-1" aria-hidden="true">
+      </div>
+
       <nav class="tab-bar" id="tabBar">
-      <button class="tab-button" data-view="dashboard">Dashboard</button>
-      <button class="tab-button" data-view="log">Daily Log</button>
+      <button class="tab-button" data-view="log">Log</button>
       <button class="tab-button" data-view="progress">Progress</button>
-      <button class="tab-button" data-view="summary">Summary</button>
+      <button class="tab-button" data-view="settings">Settings</button>
     </nav>
     </div>
 
     <main>
-      <section class="view" id="dashboardView"></section>
       <section class="view" id="logView"></section>
       <section class="view" id="progressView"></section>
-      <section class="view" id="summaryView"></section>
+      <section class="view" id="settingsView"></section>
     </main>
   </div>
 
@@ -1289,7 +1341,7 @@
       version: 5,
       startDate: TRACKER_START_DATE,
       selectedDate: TRACKER_START_DATE,
-      currentView: "dashboard",
+      currentView: "log",
       lastSavedAt: null,
       profile: {
         currentWeight: 86,
@@ -1312,7 +1364,9 @@
         email: ""
       },
       ui: {
-        workoutExpanded: false
+        workoutExpanded: false,
+        dayDetailExpanded: false,
+        syncAdvancedExpanded: false
       },
       entries: {}
     };
@@ -1615,6 +1669,14 @@
       return nextState;
     }
 
+    const VIEW_NAMES = ["log", "progress", "settings"];
+    const LEGACY_VIEW_NAMES = { dashboard: "log", summary: "settings" };
+
+    function migrateViewName(view) {
+      const mapped = LEGACY_VIEW_NAMES[view] || view;
+      return VIEW_NAMES.includes(mapped) ? mapped : "log";
+    }
+
     function loadState() {
       try {
         const saved = JSON.parse(
@@ -1654,6 +1716,7 @@
           },
           entries: saved.entries || {}
         });
+        normalizedState.currentView = migrateViewName(normalizedState.currentView);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedState));
         return normalizedState;
       } catch (error) {
@@ -4463,12 +4526,38 @@
     }
 
     function renderTabs() {
+      state.currentView = migrateViewName(state.currentView);
       document.querySelectorAll(".tab-button").forEach((button) => {
         button.classList.toggle("active", button.dataset.view === state.currentView);
       });
       document.querySelectorAll(".view").forEach((view) => {
         view.classList.toggle("active", view.id === state.currentView + "View");
       });
+    }
+
+    function describeSelectedDay(dateKey) {
+      const today = todayKey();
+      if (dateKey === today) {
+        return "Today";
+      }
+      const diff = Math.round(
+        (new Date(`${dateKey}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000
+      );
+      if (diff === -1) return "Yesterday";
+      if (diff === 1) return "Tomorrow";
+      return diff < 0 ? `${Math.abs(diff)} days ago` : `In ${diff} days`;
+    }
+
+    function renderDateStrip() {
+      const primary = document.getElementById("dateStripPrimary");
+      const secondary = document.getElementById("dateStripSecondary");
+      const todayButton = document.getElementById("dateStripToday");
+      if (!primary || !secondary || !todayButton) {
+        return;
+      }
+      primary.textContent = formatHumanDate(state.selectedDate);
+      secondary.textContent = describeSelectedDay(state.selectedDate);
+      todayButton.hidden = state.selectedDate === todayKey();
     }
 
     function mealEstimateHint(mealMetric) {
@@ -4568,250 +4657,6 @@
           </div>
 
           <p class="muted" style="margin-top:10px;">${mealEstimateHint(mealMetric)}</p>
-        </div>
-      `;
-    }
-
-    function renderDashboard() {
-      const entry = ensureEntry(state.selectedDate);
-      const metrics = calculateMetrics(state.selectedDate);
-      const feedback = buildDailyFeedback(state.selectedDate);
-      const energyBalance = describeEnergyBalance(metrics.deficit);
-      const journey = getGoalJourney(state.selectedDate);
-      const dashboard = document.getElementById("dashboardView");
-
-      dashboard.innerHTML = `
-        <div class="grid">
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h2>${formatHumanDate(state.selectedDate)}</h2>
-                <p class="muted">Planned targets with actual meals and training for the selected day.</p>
-              </div>
-              <span class="tag primary">Planned: ${metrics.plan.name}</span>
-            </div>
-            <div class="metric-grid">
-              <div class="metric">
-                <span class="muted">Target calories</span>
-                <strong>${state.profile.calorieTarget}</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Target protein</span>
-                <strong>${state.profile.proteinTarget} g</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Body parts</span>
-                <strong>${metrics.actualBodyPart}</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Water target</span>
-                <strong>${state.profile.waterTargetLiters} L</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Goal date</span>
-                <strong>${formatHumanDate(state.profile.goalTargetDate)}</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Rolling weight</span>
-                <strong>${journey.currentAverage} kg</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Planned pace</span>
-                <strong>${state.profile.weeklyLossMin}–${state.profile.weeklyLossMax} kg/wk</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Goal progress</span>
-                <strong>${journey.progressPercent}%</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="feedback-item">
-            <div>
-              <strong>${journey.intervention.title}</strong>
-              <p class="muted">${journey.intervention.body}</p>
-            </div>
-            <span class="tag ${journey.intervention.tone}">${toneLabel(journey.intervention.tone)}</span>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h2>Recovery and sustainability check-in</h2>
-                <p class="muted">Track factors that influence hunger, recovery, and whether the plan needs adjustment.</p>
-              </div>
-            </div>
-            <div class="metric-grid">
-              <div class="field-group">
-                <label>Sleep hours</label>
-                <input class="input" type="number" min="0" max="12" step="0.5" value="${escapeValue(entry.sleepHours)}" data-field="sleepHours">
-              </div>
-              <div class="field-group">
-                <label>Alcohol drinks</label>
-                <input class="input" type="number" min="0" step="1" value="${escapeValue(entry.alcoholDrinks)}" data-field="alcoholDrinks">
-              </div>
-              <div class="field-group">
-                <label>Waist (cm, weekly)</label>
-                <input class="input" type="number" min="0" step="0.5" value="${escapeValue(entry.waistCm)}" data-field="waistCm">
-              </div>
-              <div class="field-group">
-                <label>Hunger (1 low – 5 high)</label>
-                <select class="select" data-field="hungerLevel">
-                  <option value="" ${entry.hungerLevel === "" ? "selected" : ""}>Not logged</option>
-                  ${[1, 2, 3, 4, 5].map((level) => `<option value="${level}" ${toNumber(entry.hungerLevel) === level ? "selected" : ""}>${level}</option>`).join("")}
-                </select>
-              </div>
-              <div class="field-group">
-                <label>Knee status</label>
-                <select class="select" data-field="kneeStatus">
-                  ${["Good", "Stiff", "Painful", "Swollen/unstable"].map((status) => `<option value="${status}" ${entry.kneeStatus === status ? "selected" : ""}>${status}</option>`).join("")}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="split-grid">
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <h3>Actual meals and macro estimates</h3>
-                  <p class="muted">Meal totals are computed from what you type, with optional calorie overrides.</p>
-                </div>
-              </div>
-              <div class="meal-list">
-                <div class="meal-row">
-                  <div>
-                    <strong>Water intake</strong>
-                    <p class="muted">Daily hydration log</p>
-                  </div>
-                  <div style="text-align:right">
-                    <strong>${metrics.waterLiters || 0} L</strong>
-                    <p class="muted">Target ${state.profile.waterTargetLiters} L</p>
-                  </div>
-                </div>
-                ${["breakfast", "lunch", "dinner", "unplanned"].map((mealKey) => {
-                  const mealMetric = metrics.mealBreakdown[mealKey];
-                  return `
-                    <div class="meal-row">
-                      <div>
-                        <strong>${mealDisplayName(mealKey)}</strong>
-                        <p class="muted">${mealMetric.details || "Not logged yet"}</p>
-                        ${metrics.meals[mealKey] ? `<p class="muted">Planned: ${metrics.meals[mealKey].name}</p>` : `<p class="muted">Optional extra intake outside the main meal plan</p>`}
-                      </div>
-                      <div style="text-align:right">
-                        <strong>${mealMetric.calories} kcal</strong>
-                        <p class="muted">${formatMacroLine(mealMetric)}</p>
-                      </div>
-                    </div>
-                  `;
-                }).join("")}
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <h3>Actual workout log</h3>
-                  <p class="muted">Strength burn uses a conservative MET-based estimate from exercise type, load, reps, and short rest periods.</p>
-                </div>
-              </div>
-              <div class="summary-list">
-                <div class="summary-row">
-                  <div>
-                    <strong>${metrics.actualBodyPart}</strong>
-                    <p class="muted">${metrics.completedSets} completed sets across ${entry.exerciseLogs.length} exercises</p>
-                  </div>
-                  <span class="tag success">${metrics.workoutCalories} kcal</span>
-                </div>
-                ${entry.exerciseLogs.map((exercise) => `
-                  <div class="summary-row">
-                    <div>
-                      <strong>${exercise.name}</strong>
-                      <p class="muted">${exercise.sets.length} sets logged</p>
-                    </div>
-                    <span class="tag primary">${exercise.sets.reduce((sum, set) => sum + toNumber(set.reps), 0)} reps</span>
-                  </div>
-                `).join("")}
-              </div>
-            </div>
-          </div>
-
-          <div class="split-grid">
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <h3>Daily energy summary</h3>
-                  <p class="muted">Meals in, activity burn out, and the day's calorie balance.</p>
-                </div>
-              </div>
-              <div class="metric-grid">
-                <div class="metric">
-                  <span class="muted">Meal intake</span>
-                  <strong>${metrics.foodCalories} kcal</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Total burn</span>
-                  <strong>${metrics.caloriesBurnt} kcal</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">${energyBalance.label}</span>
-                  <strong>${energyBalance.valueText}</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Protein</span>
-                  <strong>${metrics.protein} g</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Carbs</span>
-                  <strong>${metrics.carbs} g</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Fat</span>
-                  <strong>${metrics.fat} g</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Water</span>
-                  <strong>${metrics.waterLiters} L</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Strength burn</span>
-                  <strong>${metrics.workoutCalories} kcal</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Cardio burn</span>
-                  <strong>${metrics.cardioCalories} kcal</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Step burn</span>
-                  <strong>${metrics.stepCalories} kcal</strong>
-                </div>
-                <div class="metric">
-                  <span class="muted">Adherence</span>
-                  <strong>${metrics.adherenceScore}%</strong>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <h3>Smart feedback</h3>
-                  <p class="muted">Prompts based on calories, protein, steps, and workout completion.</p>
-                </div>
-              </div>
-              <div class="feedback-list">
-                ${feedback.map((item) => `
-                  <div class="feedback-item">
-                    <div>
-                      <strong>${item.title}</strong>
-                      <p class="muted">${item.body}</p>
-                    </div>
-                    <span class="tag ${item.tone}">${toneLabel(item.tone)}</span>
-                  </div>
-                `).join("")}
-              </div>
-            </div>
-          </div>
         </div>
       `;
     }
@@ -4928,6 +4773,7 @@
       const energyTone = energyBalanceTone(metrics.deficit);
       const feedback = buildDailyFeedback(state.selectedDate);
       const primaryFeedback = feedback[0] || null;
+      const otherFeedback = feedback.slice(1);
       const loggedMeals = Object.values(metrics.mealBreakdown).filter((meal) => meal.hasLog).length;
       const previousMealEntryKey = getPreviousMealEntryKey(state.selectedDate);
       const workoutExpanded = Boolean(state.ui?.workoutExpanded);
@@ -5329,12 +5175,109 @@
             <button class="action-button" type="button" data-action="save-entry">Save today's log</button>
           </div>
         </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Day detail</h3>
+                <p class="muted">Full macro and burn breakdown plus recovery inputs — open only when you need them.</p>
+              </div>
+            </div>
+            <details ${state.ui?.dayDetailExpanded ? "open" : ""} data-details-key="dayDetailExpanded">
+              <summary>Macros, burn breakdown and recovery</summary>
+
+              <div class="metric-grid" style="margin-top:12px;">
+                <div class="metric">
+                  <span class="muted">Protein</span>
+                  <strong>${metrics.protein} g</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Carbs</span>
+                  <strong>${metrics.carbs} g</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Fat</span>
+                  <strong>${metrics.fat} g</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Water</span>
+                  <strong>${metrics.waterLiters} L</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Strength burn</span>
+                  <strong>${metrics.workoutCalories} kcal</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Cardio burn</span>
+                  <strong>${metrics.cardioCalories} kcal</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Step burn</span>
+                  <strong>${metrics.stepCalories} kcal</strong>
+                </div>
+                <div class="metric">
+                  <span class="muted">Adherence</span>
+                  <strong>${metrics.adherenceScore}%</strong>
+                </div>
+              </div>
+
+              <div class="metric-grid" style="margin-top:12px;">
+                <div class="field-group">
+                  <label>Sleep hours</label>
+                  <input class="input" type="number" min="0" max="12" step="0.5" value="${escapeValue(entry.sleepHours)}" data-field="sleepHours">
+                </div>
+                <div class="field-group">
+                  <label>Alcohol drinks</label>
+                  <input class="input" type="number" min="0" step="1" value="${escapeValue(entry.alcoholDrinks)}" data-field="alcoholDrinks">
+                </div>
+                <div class="field-group">
+                  <label>Waist (cm, weekly)</label>
+                  <input class="input" type="number" min="0" step="0.5" value="${escapeValue(entry.waistCm)}" data-field="waistCm">
+                </div>
+                <div class="field-group">
+                  <label>Hunger (1 low – 5 high)</label>
+                  <select class="select" data-field="hungerLevel">
+                    <option value="" ${entry.hungerLevel === "" ? "selected" : ""}>Not logged</option>
+                    ${[1, 2, 3, 4, 5].map((level) => `<option value="${level}" ${toNumber(entry.hungerLevel) === level ? "selected" : ""}>${level}</option>`).join("")}
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label>Knee status</label>
+                  <select class="select" data-field="kneeStatus">
+                    ${["Good", "Stiff", "Painful", "Swollen/unstable"].map((status) => `<option value="${status}" ${entry.kneeStatus === status ? "selected" : ""}>${status}</option>`).join("")}
+                  </select>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Feedback</h3>
+                <p class="muted">Prompts based on calories, protein, steps, and workout completion.</p>
+              </div>
+            </div>
+            <div class="feedback-list">
+              ${otherFeedback.length ? otherFeedback.map((item) => `
+                <div class="feedback-item">
+                  <div>
+                    <strong>${item.title}</strong>
+                    <p class="muted">${item.body}</p>
+                  </div>
+                  <span class="tag ${item.tone}">${toneLabel(item.tone)}</span>
+                </div>
+              `).join("") : `<div class="empty-state">Nothing else to flag for this day.</div>`}
+            </div>
+          </div>
+        </div>
       `;
     }
 
     function renderProgressView() {
       const progressView = document.getElementById("progressView");
       const journey = getGoalJourney(state.selectedDate);
+      const weeklySummary = getWeeklySummary(state.selectedDate);
       const chartDates = getLastNDates(state.selectedDate, 14);
       const chartItems = chartDates.map((dateKey) => {
         const entry = state.entries[dateKey];
@@ -5441,9 +5384,10 @@
           <div class="card">
             <div class="card-header">
               <div>
-                <h2>Weekly averages</h2>
+                <h2>This week</h2>
                 <p class="muted">Based on the last 7 logged days up to the selected date.</p>
               </div>
+              <span class="tag primary">${weeklySummary.avgAdherence}% adherence</span>
             </div>
             ${renderWeeklyAverageCards()}
           </div>
@@ -5502,6 +5446,26 @@
             <div class="empty-state">No history yet. Save a day log to start tracking progress.</div>
           `}
         </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="card-header">
+            <div>
+              <h2>Suggestions</h2>
+              <p class="muted">Use these when progress stalls or adherence drops.</p>
+            </div>
+          </div>
+          <div class="feedback-list">
+            ${weeklySummary.suggestions.length ? weeklySummary.suggestions.map((text) => `
+              <div class="feedback-item">
+                <div>
+                  <strong>Next step</strong>
+                  <p class="muted">${text}</p>
+                </div>
+                <span class="tag warn">Plan</span>
+              </div>
+            `).join("") : `<div class="empty-state">Nothing to adjust right now. Keep going.</div>`}
+          </div>
+        </div>
       `;
     }
 
@@ -5550,94 +5514,30 @@
             <span class="muted">Avg adherence</span>
             <strong>${summary.avgAdherence}%</strong>
           </div>
+          <div class="metric">
+            <span class="muted">Weight change</span>
+            <strong>${formatWeightDelta(summary.weightChange)}</strong>
+          </div>
         </div>
       `;
     }
 
-    function renderSummaryView() {
-      const summaryView = document.getElementById("summaryView");
-      const summary = getWeeklySummary(state.selectedDate);
-      const feedback = buildDailyFeedback(state.selectedDate);
-      const journey = getGoalJourney(state.selectedDate);
-      const avgEnergyBalance = describeEnergyBalance(summary.avgDeficit);
+    function renderSettingsView() {
+      const settingsView = document.getElementById("settingsView");
       const lastStatePush = remoteRuntime.lastStatePushAt
         ? new Date(remoteRuntime.lastStatePushAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
         : "Not uploaded yet";
       const lastStatePull = remoteRuntime.lastStatePullAt
         ? new Date(remoteRuntime.lastStatePullAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
         : "Not synced yet";
+      const garminAt = latestGarminSyncAt();
 
-      summaryView.innerHTML = `
+      settingsView.innerHTML = `
         <div class="grid">
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h2>Weekly scorecard</h2>
-                <p class="muted">A quick view of how the current week is trending.</p>
-              </div>
-              <span class="tag primary">Ending ${formatHumanDate(state.selectedDate)}</span>
-            </div>
-            <div class="metric-grid">
-              <div class="metric">
-                <span class="muted">Workouts</span>
-                <strong>${summary.workoutsDone} / 7</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Avg steps</span>
-                <strong>${summary.avgSteps}</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Avg protein</span>
-                <strong>${summary.avgProtein} g</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Avg water</span>
-                <strong>${summary.avgWater} L</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Avg sleep</span>
-                <strong>${summary.avgSleep} h</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Alcohol (week)</span>
-                <strong>${summary.alcoholDrinks}</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Avg adherence</span>
-                <strong>${summary.avgAdherence}%</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">Weight change</span>
-                <strong>${formatWeightDelta(summary.weightChange)}</strong>
-              </div>
-              <div class="metric">
-                <span class="muted">${avgEnergyBalance.avgLabel}</span>
-                <strong>${avgEnergyBalance.valueText}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h2>Goal journey checkpoint</h2>
-                <p class="muted">Day ${journey.elapsedDays} of ${state.profile.goalDurationDays} • ${journey.progressPercent}% toward ${state.profile.goalWeight} kg • ${journey.remaining} kg to go.</p>
-              </div>
-              <span class="tag ${journey.variance <= 0.75 ? "success" : "warn"}">${journey.currentAverage} kg now</span>
-            </div>
-            <div class="feedback-item">
-              <div>
-                <strong>${journey.intervention.title}</strong>
-                <p class="muted">${journey.intervention.body}</p>
-              </div>
-              <span class="tag ${journey.intervention.tone}">${toneLabel(journey.intervention.tone)}</span>
-            </div>
-          </div>
-
           <div class="card" id="syncSettingsCard">
             <div class="card-header">
               <div>
-                <h2>Cloud sync settings</h2>
+                <h2>Cloud sync</h2>
                 <p class="muted">Normal sync is automatic. These controls are only for setup and recovery.</p>
               </div>
               <span class="tag ${remoteRuntime.user ? "success" : "warn"}">${remoteAccountLabel()}</span>
@@ -5655,7 +5555,11 @@
                 <strong>${lastStatePull}</strong>
               </div>
             </div>
-            <details style="margin-top:14px;">
+            <div class="inline-actions" style="margin-top:12px;">
+              <button class="mini-button" type="button" data-action="sync-now">Sync now</button>
+              <button class="mini-button" type="button" data-action="run-sync-diagnostics">Check sync health</button>
+            </div>
+            <details style="margin-top:14px;" ${state.ui?.syncAdvancedExpanded ? "open" : ""} data-details-key="syncAdvancedExpanded">
               <summary>Advanced setup and recovery</summary>
               <div class="grid" style="margin-top:12px;">
                 <div class="field-group">
@@ -5679,7 +5583,6 @@
                 <div class="inline-actions">
                   <button class="mini-button" type="button" data-action="remote-push">Upload whole browser copy</button>
                   <button class="mini-button" type="button" data-action="remote-pull">Download whole cloud copy</button>
-                  <button class="mini-button" type="button" data-action="run-sync-diagnostics">Check sync health</button>
                 </div>
                 <div id="syncDiagnosticsOutput"></div>
                 <p class="muted">Run the latest <code>supabase-schema.sql</code> once to enable per-day revisioned sync.</p>
@@ -5687,46 +5590,83 @@
             </details>
           </div>
 
-          <div class="split-grid">
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <h2>Auto suggestions</h2>
-                  <p class="muted">Use these when progress stalls or adherence drops.</p>
-                </div>
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2>Targets and profile</h2>
+                <p class="muted">Daily targets and the goal window every other tab measures against.</p>
               </div>
-              <div class="feedback-list">
-                ${summary.suggestions.map((text) => `
-                  <div class="feedback-item">
-                    <div>
-                      <strong>Next step</strong>
-                      <p class="muted">${text}</p>
-                    </div>
-                    <span class="tag warn">Plan</span>
-                  </div>
-                `).join("")}
+              <span class="tag primary">${state.profile.goalWeight} kg goal</span>
+            </div>
+            <div class="metric-grid">
+              <div class="field-group">
+                <label>Calorie target</label>
+                <input class="input" type="number" min="800" step="10" value="${escapeValue(state.profile.calorieTarget)}" data-profile-field="calorieTarget">
+              </div>
+              <div class="field-group">
+                <label>Protein target (g)</label>
+                <input class="input" type="number" min="0" step="5" value="${escapeValue(state.profile.proteinTarget)}" data-profile-field="proteinTarget">
+              </div>
+              <div class="field-group">
+                <label>Step target</label>
+                <input class="input" type="number" min="0" step="500" value="${escapeValue(state.profile.stepTarget)}" data-profile-field="stepTarget">
+              </div>
+              <div class="field-group">
+                <label>Water target (L)</label>
+                <input class="input" type="number" min="0" step="0.5" value="${escapeValue(state.profile.waterTargetLiters)}" data-profile-field="waterTargetLiters">
+              </div>
+              <div class="field-group">
+                <label>Sleep target (h)</label>
+                <input class="input" type="number" min="0" max="12" step="0.5" value="${escapeValue(state.profile.sleepTargetHours)}" data-profile-field="sleepTargetHours">
+              </div>
+              <div class="field-group">
+                <label>Maintenance calories</label>
+                <input class="input" type="number" min="800" step="10" value="${escapeValue(state.profile.maintenanceCalories)}" data-profile-field="maintenanceCalories">
+              </div>
+              <div class="field-group">
+                <label>Goal weight (kg)</label>
+                <input class="input" type="number" min="0" step="0.5" value="${escapeValue(state.profile.goalWeight)}" data-profile-field="goalWeight">
+              </div>
+              <div class="field-group">
+                <label>Goal target date</label>
+                <input class="input" type="date" value="${escapeValue(state.profile.goalTargetDate)}" data-profile-field="goalTargetDate">
+              </div>
+              <div class="field-group">
+                <label>Weekly loss min (kg)</label>
+                <input class="input" type="number" min="0" step="0.05" value="${escapeValue(state.profile.weeklyLossMin)}" data-profile-field="weeklyLossMin">
+              </div>
+              <div class="field-group">
+                <label>Weekly loss max (kg)</label>
+                <input class="input" type="number" min="0" step="0.05" value="${escapeValue(state.profile.weeklyLossMax)}" data-profile-field="weeklyLossMax">
               </div>
             </div>
+          </div>
 
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <h2>Today's feedback recap</h2>
-                  <p class="muted">A second pass over the current day before closing it out.</p>
-                </div>
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2>Garmin</h2>
+                <p class="muted">The companion app writes to the cloud; the tracker imports a rolling window.</p>
               </div>
-              <div class="feedback-list">
-                ${feedback.map((item) => `
-                  <div class="feedback-item">
-                    <div>
-                      <strong>${item.title}</strong>
-                      <p class="muted">${item.body}</p>
-                    </div>
-                    <span class="tag ${item.tone}">${toneLabel(item.tone)}</span>
-                  </div>
-                `).join("")}
+              <span class="tag ${garminAt ? "success" : "warn"}">${garminAt ? "Connected" : "No data yet"}</span>
+            </div>
+            <div class="metric-grid">
+              <div class="metric">
+                <span class="muted">Automatic window</span>
+                <strong>${GARMIN_AUTO_SYNC_WINDOW_DAYS} days</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Manual window</span>
+                <strong>${GARMIN_MANUAL_SYNC_WINDOW_DAYS} days</strong>
+              </div>
+              <div class="metric">
+                <span class="muted">Last captured</span>
+                <strong>${garminAt ? formatDateTime(garminAt) : "Not yet"}</strong>
               </div>
             </div>
+            <p class="muted" style="margin-top:12px;">
+              Older days are skipped unless you open that day in the Log tab and use <strong>Sync this day</strong>.
+            </p>
           </div>
         </div>
       `;
@@ -5788,10 +5728,10 @@
       renderSyncIndicator();
       renderSaveNote();
       renderTabs();
-      renderDashboard();
+      renderDateStrip();
       renderLogView();
       renderProgressView();
-      renderSummaryView();
+      renderSettingsView();
       restoreFocusState(focusSnapshot);
     }
 
@@ -5858,6 +5798,15 @@
         state.selectedDate = maxDateKey(target.value || todayKey(), TRACKER_START_DATE);
         ensureEntry(state.selectedDate);
         saveState({ queueRemote: false });
+        render();
+        return;
+      }
+
+      if (target.dataset.profileField) {
+        const field = target.dataset.profileField;
+        const nextValue = target.type === "number" ? toNumber(target.value) : target.value;
+        state.profile[field] = nextValue;
+        saveState();
         render();
         return;
       }
@@ -5950,7 +5899,7 @@
 
       if (button.dataset.action === "open-sync-settings") {
         document.getElementById("syncDialog")?.close();
-        state.currentView = "summary";
+        state.currentView = "settings";
         saveState({ queueRemote: false });
         render();
         requestAnimationFrame(() => {
@@ -5976,6 +5925,23 @@
 
       if (button.dataset.action === "garmin-reset-overrides") {
         resetGarminOverrides(state.selectedDate);
+        return;
+      }
+
+      if (button.dataset.action === "open-date-picker") {
+        const picker = document.getElementById("entryDate");
+        if (picker) {
+          picker.style.pointerEvents = "auto";
+          if (typeof picker.showPicker === "function") {
+            try {
+              picker.showPicker();
+            } catch (error) {
+              picker.focus();
+            }
+          } else {
+            picker.focus();
+          }
+        }
         return;
       }
 
@@ -6233,6 +6199,18 @@
       }
     });
     document.addEventListener("click", handleClick);
+
+    // `toggle` does not bubble, so this listens in the capture phase. Disclosure
+    // state has to live in state.ui because every render replaces innerHTML.
+    document.addEventListener("toggle", (event) => {
+      const details = event.target;
+      if (!(details instanceof HTMLElement) || !details.dataset.detailsKey) {
+        return;
+      }
+      state.ui = state.ui || {};
+      state.ui[details.dataset.detailsKey] = details.open;
+      saveState({ queueRemote: false });
+    }, true);
 
     // Test hook for tools/smoke-tracker.js. These are module-scoped consts, so
     // they are not reachable on window without this. The app never reads it.

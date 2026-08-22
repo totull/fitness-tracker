@@ -62,7 +62,7 @@ function check(name, pass, detail) {
     window.__trackerTest.remoteRuntime.dirty = false;
     window.__trackerTest.getState().syncMeta = { dirty: false };
   });
-  await page.locator('.tab-button[data-view="summary"]').click();
+  await page.locator('.tab-button[data-view="progress"]').click();
   await page.waitForTimeout(850);
   const navigationDirty = await page.evaluate(() => ({
     runtime: window.__trackerTest.remoteRuntime.dirty,
@@ -1166,11 +1166,11 @@ function check(name, pass, detail) {
   check('warning disappears once the account matches',
     account.warningCleared === true, String(account.warningCleared));
 
-  // --- Sync state must be visible in every tab, not just Summary ----------
+  // --- Sync state must be visible in every tab ---------------------------
   // Real-world complaint: on the phone the indicator lived deep in a tall
-  // header, so only Summary (which has its own sync card) ever showed it.
+  // header, so only Summary (which had its own sync card) ever showed it.
   const pinned = [];
-  for (const view of ['dashboard', 'log', 'progress', 'summary']) {
+  for (const view of ['log', 'progress', 'settings']) {
     const seen = await page.evaluate(async (v) => {
       const st = window.__trackerTest.getState();
       st.currentView = v;
@@ -1193,6 +1193,132 @@ function check(name, pass, detail) {
       r.ok === true, `top=${r.top}`);
   }
   await page.evaluate(() => { window.scrollTo(0, 0); });
+
+  // --- Information architecture: 3 tabs, no duplicated day content --------
+  // The old 4-tab layout rendered daily feedback 3x, the goal intervention 3x
+  // and the Garmin card 2x, which is what made the phone view feel cluttered.
+  const ia = await page.evaluate(() => {
+    const st = window.__trackerTest.getState();
+    const tabs = [...document.querySelectorAll('.tab-button')].map((b) => b.dataset.view);
+    const countAcrossTabs = (fn) => {
+      let total = 0;
+      for (const v of tabs) {
+        st.currentView = v;
+        window.render();
+        total += fn(document.getElementById(v + 'View'));
+      }
+      return total;
+    };
+    const headings = (root, text) => root
+      ? [...root.querySelectorAll('h2, h3')].filter((h) => h.textContent.trim() === text).length
+      : 0;
+    const result = {
+      tabs,
+      garminCards: countAcrossTabs((root) => root ? root.querySelectorAll('.garmin-card').length : 0),
+      feedbackHeadings: countAcrossTabs((root) => headings(root, 'Feedback')
+        + headings(root, 'Smart feedback') + headings(root, "Today's feedback recap")),
+      legacyViews: ['dashboardView', 'summaryView'].filter((id) => document.getElementById(id)).length
+    };
+    st.currentView = 'log';
+    window.render();
+    return result;
+  });
+  check('tab bar is exactly Log / Progress / Settings',
+    JSON.stringify(ia.tabs) === JSON.stringify(['log', 'progress', 'settings']), JSON.stringify(ia.tabs));
+  check('legacy dashboard and summary views are gone',
+    ia.legacyViews === 0, String(ia.legacyViews));
+  check('Garmin card renders exactly once across all tabs',
+    ia.garminCards === 1, String(ia.garminCards));
+  check('daily feedback renders exactly once across all tabs',
+    ia.feedbackHeadings === 1, String(ia.feedbackHeadings));
+
+  // A saved view name from the old layout must not leave the app blank.
+  const migrated = await page.evaluate(() => {
+    const st = window.__trackerTest.getState();
+    const out = {};
+    for (const legacy of ['dashboard', 'summary', 'nonsense']) {
+      st.currentView = legacy;
+      window.render();
+      out[legacy] = {
+        resolved: st.currentView,
+        visible: [...document.querySelectorAll('.view.active')].length
+      };
+    }
+    st.currentView = 'log';
+    window.render();
+    return out;
+  });
+  check('legacy "dashboard" view migrates to Log',
+    migrated.dashboard.resolved === 'log' && migrated.dashboard.visible === 1,
+    JSON.stringify(migrated.dashboard));
+  check('legacy "summary" view migrates to Settings',
+    migrated.summary.resolved === 'settings' && migrated.summary.visible === 1,
+    JSON.stringify(migrated.summary));
+  check('an unknown saved view falls back to Log instead of a blank screen',
+    migrated.nonsense.resolved === 'log' && migrated.nonsense.visible === 1,
+    JSON.stringify(migrated.nonsense));
+
+  // The date being edited must be pinned next to the sync state, because every
+  // tab renders state.selectedDate and past days are editable.
+  const dateStrip = await page.evaluate(async () => {
+    const st = window.__trackerTest.getState();
+    st.currentView = 'log';
+    window.render();
+    window.scrollTo(0, 1500);
+    await new Promise((r) => setTimeout(r, 60));
+    const label = document.getElementById('dateStripPrimary');
+    if (!label) return { ok: false, why: 'missing' };
+    const rect = label.getBoundingClientRect();
+    return {
+      ok: rect.top >= 0 && rect.bottom <= window.innerHeight,
+      text: label.textContent.trim(),
+      secondary: document.getElementById('dateStripSecondary')?.textContent.trim(),
+      todayHidden: document.getElementById('dateStripToday')?.hidden
+    };
+  });
+  check('selected date stays pinned on screen while scrolling',
+    dateStrip.ok === true && dateStrip.text.length > 0, JSON.stringify(dateStrip));
+  check('date strip says how far the selected day is from today',
+    typeof dateStrip.secondary === 'string' && dateStrip.secondary.length > 0,
+    JSON.stringify(dateStrip.secondary));
+  check('"Back to today" offered when not viewing today',
+    dateStrip.todayHidden === false, String(dateStrip.todayHidden));
+  await page.evaluate(() => { window.scrollTo(0, 0); });
+
+  // Targets moved to Settings, so they have to actually be editable there.
+  const targets = await page.evaluate(() => {
+    const st = window.__trackerTest.getState();
+    st.currentView = 'settings';
+    window.render();
+    const input = document.querySelector('[data-profile-field="proteinTarget"]');
+    if (!input) return { ok: false, why: 'missing' };
+    const before = st.profile.proteinTarget;
+    input.value = '155';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const after = window.__trackerTest.getState().profile.proteinTarget;
+    st.profile.proteinTarget = before;
+    st.currentView = 'log';
+    window.render();
+    return { ok: true, before, after };
+  });
+  check('protein target is editable from the Settings tab',
+    targets.ok === true && targets.after === 155, JSON.stringify(targets));
+
+  // Metric tiles collapsing to one column is what made Progress endless.
+  const tileColumns = await page.evaluate(() => {
+    const st = window.__trackerTest.getState();
+    st.currentView = 'progress';
+    window.render();
+    const grid = document.querySelector('#progressView .metric-grid');
+    if (!grid) return { ok: false, why: 'missing' };
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length;
+    st.currentView = 'log';
+    window.render();
+    return { ok: true, cols, width: window.innerWidth };
+  });
+  check('metric tiles are at least 2-up instead of one per row',
+    tileColumns.ok === true && tileColumns.cols >= 2,
+    JSON.stringify(tileColumns));
 
   await browser.close();
 
